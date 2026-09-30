@@ -1,0 +1,37 @@
+# ==========================================
+# 1. Terraform Core Blocks (Crucial)
+# ==========================================
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+*.tfplan
+crash.log
+.terraform.tfstate.lock.info
+
+# Local var files (may contain secrets)
+*.tfvars
+*.tfvars.json
+
+# ==========================================
+# 2. Local Environment & OS Metadata
+# ==========================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.DS_Store
+.directory
+.pki/
+
+# ==========================================
+# 3. Security Boundary Targets (Safeguards)
+# ==========================================
+*.pem
+*.key
+*.pub
+
+# Generated lab artifacts
+ami_reference_*.txt
+terraform/lab/artifacts/*.rpm
