@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 exec > >(tee /var/log/linux-endpoint-forwarder.log | logger -t linux-endpoint-forwarder -s 2>/dev/console) 2>&1
-
 trap 'echo "[BOOTSTRAP ERROR] Linux endpoint forwarder setup failed at line ${LINENO}"' ERR
 
+echo "[BOOTSTRAP_PROGRESS] 0% - Linux forwarder setup started"
 : "${SPLUNK_PRIVATE_IP:?SPLUNK_PRIVATE_IP was not supplied}"
 : "${UF_S3_URI:?UF_S3_URI was not supplied}"
 : "${UF_PACKAGE_KEY:?UF_PACKAGE_KEY was not supplied}"
@@ -14,25 +14,28 @@ readonly REGION="$(TOKEN=$(curl -fsS -X PUT -H 'X-aws-ec2-metadata-token-ttl-sec
 readonly APP_DIR="${SPLUNK_HOME}/etc/apps/lab_endpoint/local"
 readonly DEPLOY_SERVER="${SPLUNK_PRIVATE_IP}:9997"
 
-# Wait for the Splunk receiver to be ready before installing/configuring UF.
+echo "[BOOTSTRAP_PROGRESS] 5% - waiting for Splunk receiver"
 for attempt in {1..60}; do
   if timeout 3 bash -c "</dev/tcp/${SPLUNK_PRIVATE_IP}/9997" 2>/dev/null; then
     break
   fi
   if [[ "${attempt}" -eq 60 ]]; then
-    echo "ERROR: Splunk receiver did not become reachable."
+    echo "[BOOTSTRAP ERROR] Splunk receiver did not become reachable."
     exit 1
   fi
   sleep 10
 done
+echo "[BOOTSTRAP_PROGRESS] 20% - Splunk receiver is reachable"
 
-aws s3 cp "${UF_S3_URI}" "${DOWNLOAD_PATH}" --region "${REGION}"
 if [[ "${UF_PACKAGE_KEY}" != *.rpm ]]; then
-  echo "ERROR: linux_uf_package_key must identify an RPM package."
+  echo "[BOOTSTRAP ERROR] linux_uf_package_key must identify an RPM package."
   exit 1
 fi
+aws s3 cp "${UF_S3_URI}" "${DOWNLOAD_PATH}" --region "${REGION}"
+echo "[BOOTSTRAP_PROGRESS] 40% - Universal Forwarder package downloaded"
 dnf install -y "${DOWNLOAD_PATH}"
 rm -f "${DOWNLOAD_PATH}"
+echo "[BOOTSTRAP_PROGRESS] 60% - Universal Forwarder installed"
 
 mkdir -p "${APP_DIR}"
 cat > "${APP_DIR}/outputs.conf" <<EOF_OUTPUTS
@@ -55,10 +58,10 @@ disabled = false
 index = linux_endpoint
 sourcetype = linux_secure
 EOF_INPUTS
+echo "[BOOTSTRAP_PROGRESS] 80% - forwarder inputs and outputs configured"
 
 "${SPLUNK_HOME}/bin/splunk" start --accept-license --answer-yes --no-prompt
 "${SPLUNK_HOME}/bin/splunk" enable boot-start -user root
 systemctl enable SplunkForwarder
 systemctl restart SplunkForwarder
-
-echo "Linux Universal Forwarder configured for ${DEPLOY_SERVER}."
+echo "[BOOTSTRAP_COMPLETE] 100% - Linux Universal Forwarder configured for ${DEPLOY_SERVER}"

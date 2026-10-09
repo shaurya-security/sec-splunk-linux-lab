@@ -1,19 +1,23 @@
 #!/bin/bash
+# Shared setup hash: ${linux_setup_hash}
+# Endpoint setup hash: ${linux_endpoint_hash}
+# Diagnostic helper hash: ${logs_hash}
 set -euo pipefail
 exec > >(tee /var/log/linux-endpoint-bootstrap.log | logger -t linux-endpoint-bootstrap -s 2>/dev/console) 2>&1
 trap 'echo "[BOOTSTRAP ERROR] Linux endpoint bootstrap failed at line $LINENO"' ERR
 
+echo "[BOOTSTRAP_PROGRESS] 0% - Linux endpoint bootstrap started"
 S3_BUCKET="${s3_bucket}"
 SPLUNK_PRIVATE_IP="${splunk_private_ip}"
 UF_S3_URI="s3://${s3_bucket}/${uf_s3_prefix}/${uf_package_key}"
 UF_PACKAGE_KEY="${uf_package_key}"
 
 hostnamectl set-hostname "${hostname}"
-
 if ! command -v aws >/dev/null 2>&1; then
   dnf install -y awscli2 || dnf install -y aws-cli
 fi
 
+echo "[BOOTSTRAP_PROGRESS] 10% - hostname and AWS CLI ready"
 TOKEN="$(curl -fsS -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 300' \
   http://169.254.169.254/latest/api/token)"
 REGION="$(curl -fsS -H "X-aws-ec2-metadata-token: $TOKEN" \
@@ -35,17 +39,20 @@ s3_download() {
   return 1
 }
 
+echo "[BOOTSTRAP_PROGRESS] 15% - running shared Linux setup"
 s3_download "linux-setup.sh" "/tmp/linux-setup.sh"
 chmod 700 /tmp/linux-setup.sh
 /tmp/linux-setup.sh
+echo "[BOOTSTRAP_PROGRESS] 40% - shared Linux setup finished"
 
+echo "[BOOTSTRAP_PROGRESS] 45% - installing Universal Forwarder"
 s3_download "linux-endpoint.sh" "/tmp/linux-endpoint.sh"
 chmod 700 /tmp/linux-endpoint.sh
 /tmp/linux-endpoint.sh
+echo "[BOOTSTRAP_PROGRESS] 85% - Universal Forwarder configured"
 
 s3_download "userdata-logs.sh" "/home/ssm-user/userdata-logs.sh"
 chmod 700 /home/ssm-user/userdata-logs.sh
 chown ssm-user:ssm-user /home/ssm-user/userdata-logs.sh
-
 rm -f /tmp/linux-setup.sh /tmp/linux-endpoint.sh
-echo "===== Linux endpoint bootstrap complete ($(hostname)) ====="
+echo "[BOOTSTRAP_COMPLETE] 100% - Linux endpoint bootstrap completed ($(hostname))"

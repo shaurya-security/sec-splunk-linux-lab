@@ -43,3 +43,37 @@
 ## 2026-10-10 — Architecture refreshed
 
 - docs/architecture.md rebuilt from a full project scan (version 5, 38 files).
+
+## 2026-10-10 — Make Linux bootstrap log scanning role-aware
+### Fixed
+- Scan only the log files expected for `splunk-server` or `linux-endpoint-01` instead of mixing both hosts' logs.
+- Treat expected missing or unreadable logs as failures, preventing a false success when bootstrap logs are absent.
+- Removed the obsolete `linux_bootstrap.log` expectation; added explicit role selection as a fallback.
+### Validation
+- `bash -n terraform/lab/userdata/userdata-logs.sh` — passed.
+- `git diff --check` — passed.
+
+## 2026-10-10 — Replace instances when staged userdata scripts change
+### Changed
+- Added local file hashes to the Splunk, Linux endpoint, and Windows endpoint user-data templates for the S3-downloaded scripts each instance consumes.
+- User-data script edits now change rendered `user_data`, activating the existing `user_data_replace_on_change = true` behavior for affected instances only.
+### Validation
+- `terraform -chdir=terraform/lab fmt -check -recursive` — passed.
+- `terraform -chdir=terraform/lab validate` — passed.
+- `bash -n terraform/lab/userdata/userdata-logs.sh terraform/lab/userdata/linux-endpoint-bootstrap.sh.tpl` — passed.
+- `git diff --check` — passed.
+
+## 2026-10-10 — Report userdata execution progress
+### Changed
+- Added percentage checkpoints and terminal completion markers to Splunk, Linux endpoint, and Windows endpoint bootstrap logs.
+- Updated both diagnostic helpers to show each log's latest progress, completion/failure state, and active or possibly stalled status.
+### Validation
+- `terraform -chdir=terraform/lab fmt -check -recursive` — passed.
+- `terraform -chdir=terraform/lab validate` — passed.
+- `bash -n terraform/lab/userdata/bootstrap.sh.tpl terraform/lab/userdata/splunk-install.sh terraform/lab/userdata/linux-endpoint-bootstrap.sh.tpl terraform/lab/userdata/linux-endpoint.sh terraform/lab/userdata/userdata-logs.sh` — passed.
+- `git diff --check` — passed.
+- PowerShell validation was unavailable because `pwsh` is not installed in this environment.
+
+## 2026-10-10 — Architecture refreshed
+
+- docs/architecture.md rebuilt from a full project scan (version 9, 38 files).

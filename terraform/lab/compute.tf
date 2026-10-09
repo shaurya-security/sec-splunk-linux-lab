@@ -12,6 +12,7 @@ resource "aws_instance" "splunk" {
     password_param = local.splunk_password_param
     script_hash    = filemd5("${path.module}/userdata/splunk-install.sh")
     common_hash    = filemd5("${path.module}/userdata/linux-setup.sh")
+    logs_hash      = filemd5("${path.module}/userdata/userdata-logs.sh")
   })
   user_data_replace_on_change = true
 
@@ -49,11 +50,14 @@ resource "aws_instance" "linux_endpoint" {
   associate_public_ip_address = true
 
   user_data = templatefile("${path.module}/userdata/linux-endpoint-bootstrap.sh.tpl", {
-    s3_bucket         = var.userdata_bucket
-    splunk_private_ip = aws_instance.splunk.private_ip
-    uf_s3_prefix      = var.uf_s3_prefix
-    uf_package_key    = var.linux_uf_package_key
-    hostname          = local.linux_endpoint_hostname
+    s3_bucket           = var.userdata_bucket
+    splunk_private_ip   = aws_instance.splunk.private_ip
+    uf_s3_prefix        = var.uf_s3_prefix
+    uf_package_key      = var.linux_uf_package_key
+    hostname            = local.linux_endpoint_hostname
+    linux_setup_hash    = filemd5("${path.module}/userdata/linux-setup.sh")
+    linux_endpoint_hash = filemd5("${path.module}/userdata/linux-endpoint.sh")
+    logs_hash           = filemd5("${path.module}/userdata/userdata-logs.sh")
   })
   user_data_replace_on_change = true
 
@@ -93,12 +97,14 @@ resource "aws_instance" "windows_endpoint" {
   associate_public_ip_address = true
 
   user_data = templatefile("${path.module}/userdata/windows-endpoint-bootstrap.ps1.tpl", {
-    s3_bucket         = var.userdata_bucket
-    splunk_private_ip = aws_instance.splunk.private_ip
-    uf_s3_prefix      = var.uf_s3_prefix
-    uf_package_key    = var.windows_uf_package_key
-    aws_region        = "ap-south-1"
-    hostname          = local.windows_endpoint_hostname
+    s3_bucket             = var.userdata_bucket
+    splunk_private_ip     = aws_instance.splunk.private_ip
+    uf_s3_prefix          = var.uf_s3_prefix
+    uf_package_key        = var.windows_uf_package_key
+    aws_region            = "ap-south-1"
+    hostname              = local.windows_endpoint_hostname
+    windows_endpoint_hash = filemd5("${path.module}/userdata/windows-endpoint.sh")
+    logs_hash             = filemd5("${path.module}/userdata/userdata-logs.ps1")
   })
   user_data_replace_on_change = true
 

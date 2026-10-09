@@ -16,9 +16,10 @@ set -euo pipefail
 
 exec > >(tee /var/log/splunk-install.log | logger -t splunk-userdata -s 2>/dev/console) 2>&1
 
-trap 'echo "🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴 Splunk installation FAILED at line $LINENO 🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴"; date' ERR
+trap 'echo "[BOOTSTRAP ERROR] Splunk installation failed at line $LINENO 🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴"; date' ERR
 
 echo "===== Splunk installation started ====="
+echo "[BOOTSTRAP_PROGRESS] 0% - Splunk installation started"
 date
 
 # --------------------------------------------------
@@ -36,12 +37,12 @@ SPLUNK_APP="lab_ingestion"
 SPLUNK_APP_HOME="${SPLUNK_HOME}/etc/apps/${SPLUNK_APP}"
 
 if [ "$(uname -m)" != "x86_64" ]; then
-    echo "ERROR: this script expects an x86_64 instance (got $(uname -m))."
+    echo "[BOOTSTRAP ERROR] this script expects an x86_64 instance (got $(uname -m))."
     exit 1
 fi
 
 id "${WORK_USER}" >/dev/null 2>&1 || {
-    echo "ERROR: ${WORK_USER} does not exist."
+    echo "[BOOTSTRAP ERROR] ${WORK_USER} does not exist."
     exit 1
 }
 
@@ -59,11 +60,14 @@ imds() {
 REGION="$(imds placement/region)"
 
 [ -n "$REGION" ] || {
-    echo "ERROR: could not determine AWS region from IMDS."
+    echo "[BOOTSTRAP ERROR] could not determine AWS region from IMDS."
     exit 1
 }
 
 # --------------------------------------------------
+echo "[BOOTSTRAP_PROGRESS] 10% - configuration and instance metadata validated"
+
+
 # System preparation
 # --------------------------------------------------
 dnf update -y
@@ -91,6 +95,9 @@ systemctl enable --now disable-thp.service || \
     echo "WARNING: could not disable THP"
 
 # --------------------------------------------------
+echo "[BOOTSTRAP_PROGRESS] 20% - system preparation started"
+
+
 # Admin password from SSM Parameter Store
 # (retries because a fresh instance-profile can take a moment to become usable)
 # --------------------------------------------------
@@ -111,12 +118,15 @@ for _ in {1..12}; do
 done
 
 if [ "${#SPLUNK_PASSWORD}" -lt 8 ]; then
-    echo "ERROR: could not read ${SPLUNK_PASSWORD_PARAM} from SSM, or it is shorter than 8 characters."
+    echo "[BOOTSTRAP ERROR] could not read ${SPLUNK_PASSWORD_PARAM} from SSM, or it is shorter than 8 characters."
     echo "Check the instance role (ssm:GetParameter, plus kms:Decrypt if using a CMK)."
     exit 1
 fi
 
 # --------------------------------------------------
+echo "[BOOTSTRAP_PROGRESS] 35% - SSM admin password retrieved"
+
+
 # Splunk package
 # --------------------------------------------------
 cd /tmp
@@ -126,13 +136,15 @@ cd /tmp
 RPM_FILE="${SPLUNK_RPM_PATH}"
 
 if [ ! -f "${RPM_FILE}" ]; then
-    echo "ERROR: Splunk RPM not found at ${RPM_FILE}"
+    echo "[BOOTSTRAP ERROR] Splunk RPM not found at ${RPM_FILE}"
     exit 1
 fi
 
 echo "Using Splunk RPM: ${RPM_FILE}"
+echo "[BOOTSTRAP_PROGRESS] 40% - installing Splunk package"
 
 dnf install -y "${RPM_FILE}"
+echo "[BOOTSTRAP_PROGRESS] 50% - Splunk package installed"
 
 id splunk &>/dev/null || useradd -r -m -d "${SPLUNK_HOME}" splunk
 
@@ -360,6 +372,9 @@ EOF
 chown -R splunk:splunk "${SPLUNK_HOME}/etc"
 
 # --------------------------------------------------
+echo "[BOOTSTRAP_PROGRESS] 75% - Splunk configuration and optional apps prepared"
+
+
 # First start
 # Accepts license, consumes user-seed.conf, then hand over to systemd.
 # --------------------------------------------------
@@ -375,7 +390,7 @@ for dir in \
     "${SPLUNK_HOME}/var/lib/splunk"; do
 
     if ! runuser -u splunk -- test -w "${dir}"; then
-        echo "ERROR: splunk user cannot write ${dir}"
+        echo "[BOOTSTRAP ERROR] splunk user cannot write ${dir}"
         ls -ld "${dir}"
         exit 1
     fi
@@ -410,6 +425,7 @@ EOF
 systemctl daemon-reload
 systemctl enable Splunkd
 systemctl start Splunkd
+echo "[BOOTSTRAP_PROGRESS] 85% - Splunk service started"
 
 # Verify the effective Splunk configuration from the running installation.
 if runuser -u splunk -- "${SPLUNK_HOME}/bin/splunk" btool indexes list linux_audit --debug 2>/dev/null |
@@ -453,6 +469,9 @@ if [ -f "${AUDIT_LOG}" ]; then
 fi
 
 # --------------------------------------------------
+echo "[BOOTSTRAP_PROGRESS] 90% - checking Splunk configuration and audit access"
+
+
 # Wait for Splunk Web
 # --------------------------------------------------
 CODE="000"
@@ -483,6 +502,9 @@ if [ "${CODE}" != "200" ]; then
 fi
 
 # --------------------------------------------------
+echo "[BOOTSTRAP_PROGRESS] 95% - Splunk Web health check finished"
+
+
 # Summary
 # --------------------------------------------------
 INSTALLED_VERSION="$(
@@ -550,4 +572,9 @@ unset CURRENT_PASSWORD
 chmod 600 "$INFO_FILE"
 chown "${WORK_USER}:${WORK_USER}" "$INFO_FILE"
 
+if [ "$ALL_OK" = true ]; then
+    echo "[BOOTSTRAP_COMPLETE] 100% - Splunk installation completed and services are healthy"
+else
+    echo "[BOOTSTRAP_COMPLETE] 100% - Splunk installation script finished with service health warnings"
+fi
 echo "===== Splunk installation finished ====="
