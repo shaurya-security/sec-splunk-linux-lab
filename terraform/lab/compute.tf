@@ -53,6 +53,7 @@ resource "aws_instance" "linux_endpoint" {
     splunk_private_ip = aws_instance.splunk.private_ip
     uf_s3_prefix      = var.uf_s3_prefix
     uf_package_key    = var.linux_uf_package_key
+    hostname          = local.linux_endpoint_hostname
   })
   user_data_replace_on_change = true
 
@@ -97,6 +98,7 @@ resource "aws_instance" "windows_endpoint" {
     uf_s3_prefix      = var.uf_s3_prefix
     uf_package_key    = var.windows_uf_package_key
     aws_region        = "ap-south-1"
+    hostname          = local.windows_endpoint_hostname
   })
   user_data_replace_on_change = true
 

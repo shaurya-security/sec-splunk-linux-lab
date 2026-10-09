@@ -1,0 +1,28 @@
+title: Windows Failed Logon
+id: 5e477b99-8234-4c1e-a2bc-c48f1342b5c5
+status: experimental
+description: Detects Windows Security audit events for failed logons.
+author: sec-splunk-linux-lab
+references:
+  - https://learn.microsoft.com/windows/security/threat-protection/auditing/event-4625
+date: '2026-10-09'
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+  condition: selection
+fields:
+  - IpAddress
+  - TargetUserName
+  - ComputerName
+  - LogonType
+falsepositives:
+  - Users mistyping passwords
+  - Applications or services attempting authentication with expired credentials
+level: low
+tags:
+  - attack.credential_access
+  - attack.t1110
+  - attack.t1110.001

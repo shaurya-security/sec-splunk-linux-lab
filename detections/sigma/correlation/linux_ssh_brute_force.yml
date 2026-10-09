@@ -1,0 +1,26 @@
+title: Linux SSH Brute Force From One Source
+id: 4e63053b-3c4b-4318-8979-760535dc7898
+status: experimental
+description: More than five failed SSH authentications for one account from one source against one Linux endpoint within five minutes.
+author: sec-splunk-linux-lab
+date: '2026-10-09'
+references:
+  - https://attack.mitre.org/techniques/T1110/001/
+correlation:
+  type: event_count
+  rules:
+    - a62d46db-96cc-427d-a64d-55fd280bf2c1
+  group-by:
+    - SourceIp
+    - ComputerName
+    - User
+  timespan: 5m
+  condition:
+    gt: 5
+falsepositives:
+  - Repeated mistakes by a legitimate user
+level: medium
+tags:
+  - attack.credential_access
+  - attack.t1110
+  - attack.t1110.001

@@ -1,0 +1,27 @@
+title: Windows Brute Force Against One Account
+id: beaa72a4-5157-43a3-94a9-a3be95b31070
+status: experimental
+description: More than five failed Windows logons for one account from one source against one endpoint within five minutes.
+author: sec-splunk-linux-lab
+date: '2026-10-09'
+references:
+  - https://attack.mitre.org/techniques/T1110/001/
+correlation:
+  type: event_count
+  rules:
+    - 5e477b99-8234-4c1e-a2bc-c48f1342b5c5
+  group-by:
+    - IpAddress
+    - ComputerName
+    - TargetUserName
+  timespan: 5m
+  condition:
+    gt: 5
+falsepositives:
+  - Users mistyping passwords
+  - Applications or services attempting authentication with expired credentials
+level: medium
+tags:
+  - attack.credential_access
+  - attack.t1110
+  - attack.t1110.001

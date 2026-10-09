@@ -3,6 +3,7 @@ locals {
     "linux-setup.sh",
     "splunk-install.sh",
     "userdata-logs.sh",
+    "userdata-logs.ps1",
     "linux-endpoint.sh",
     "windows-endpoint.sh",
   ]

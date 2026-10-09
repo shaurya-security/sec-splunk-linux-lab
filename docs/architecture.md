@@ -2,92 +2,107 @@
 
 ## Project
 - Name: `sec-splunk-linux-lab`
-- Purpose: Terraform-managed AWS lab running Splunk Enterprise with Linux and Windows Universal Forwarder endpoints.
-- Root: `terraform/` contains the separate state-bucket bootstrap and lab configurations.
+- Purpose: Terraform-managed AWS lab running Splunk Enterprise with Linux and Windows Universal Forwarder endpoints and experimental Sigma authentication detections.
+- Root: `.`; state-bucket bootstrap and lab configurations are under `terraform/`.
 
 ## Directory Structure
 
 ```text
 .
 ├── README.md
+├── detections/
+│   └── sigma/
+│       ├── linux/              # Linux authentication event rules
+│       ├── windows/            # Windows authentication event rules
+│       └── correlation/        # Brute-force and password-spray rules
+├── docs/
+│   └── architecture.md
 └── terraform/
-    ├── bootstrap/            # Creates the Terraform state S3 bucket
+    ├── bootstrap/              # S3 bucket for Terraform state
     └── lab/
-        ├── .github/workflows/ # Terraform CI workflow
-        └── userdata/           # Instance bootstrap and setup scripts/templates
+        ├── .github/workflows/  # Terraform CI workflow
+        └── userdata/           # Instance bootstrap templates and setup scripts
 ```
 
 ## Architecture
 
 ### Infrastructure
-- `terraform/bootstrap/` provisions the encrypted, private S3 bucket used for Terraform state.
-- `terraform/lab/` provisions the Splunk server and Linux and Windows endpoint EC2 instances.
-- The lab uploads bootstrap scripts to an existing S3 bucket; software packages and optional Splunk apps are expected there as well.
+- `terraform/bootstrap/` configures an S3 bucket for Terraform state.
+- `terraform/lab/` provisions a VPC, IAM and SSM resources, S3 script objects, and three EC2 instances: Splunk, Linux endpoint, and Windows endpoint.
+- The lab uses a pre-existing S3 bucket for bootstrap scripts, Splunk and Universal Forwarder packages, and optional Splunk apps.
 
 ### Application
-- The Splunk EC2 instance installs and configures Splunk Enterprise using scripts in `terraform/lab/userdata/`.
-- Linux and Windows endpoint instances install and configure Universal Forwarders to send data to the Splunk server.
-- Linux setup also configures common tools and the SSM-managed user environment.
+- The Splunk host installs Splunk Enterprise using scripts in `terraform/lab/userdata/`.
+- Linux and Windows endpoint scripts install and configure Universal Forwarders to send telemetry to Splunk.
+- Linux setup and endpoint scripts configure the host and collect authentication logs; Windows endpoint scripts configure Security event forwarding.
+- Experimental Sigma event and correlation rules in `detections/sigma/` cover Linux SSH authentication failures and Windows failed logons.
 
 ### Networking
-- The lab creates a VPC with one public subnet, an internet gateway, and a default internet route.
-- All three instances have public IPs and unrestricted outbound traffic.
-- Splunk Web is allowed from the public IP detected during Terraform execution; receiver traffic is allowed on port 9997 from the endpoint security group.
-- No inbound SSH or Splunk management port is configured; instance access is intended through Session Manager.
+- The lab creates one VPC and public subnet in `ap-south-1a`, with an internet gateway and default internet route.
+- All three instances receive public IPs and unrestricted outbound traffic.
+- Splunk Web ingress on port 8000 is limited to the public IP fetched during Terraform execution. Forwarding on port 9997 is allowed from the endpoint security group.
+- Endpoint security groups have no inbound rules. SSH and Splunk management port 8089 are not exposed; instance access is intended through Session Manager.
 
 ### Storage
-- Terraform state is stored in S3: the bucket is created by `terraform/bootstrap/`, and the lab uses an S3 backend with lockfile support.
-- Instance root volumes are encrypted gp3 EBS volumes.
-- The lab S3 bucket stores bootstrap scripts, Universal Forwarder packages, the Splunk Enterprise package, and optionally Splunk apps.
+- Bootstrap Terraform state is local to `terraform/bootstrap/`; the lab uses an encrypted S3 backend with lockfile support.
+- The state bucket configuration applies AES256 server-side encryption and blocks public access.
+- EC2 root volumes are encrypted gp3 EBS volumes.
+- The pre-existing lab S3 bucket stores uploaded bootstrap scripts, packages, and optional Splunk apps.
 - The Splunk admin password is stored as an SSM SecureString and is also present in Terraform state.
 
 ### IAM / Security
-- Separate instance roles provide SSM access to the Splunk host and endpoint instances.
-- The Splunk role can read bootstrap content and its password parameter; endpoint roles have narrower S3 access for bootstrap scripts and forwarder packages, not the password.
-- EC2 metadata access requires IMDSv2. The state bucket blocks public access and uses server-side encryption.
-- Security groups restrict inbound access to Splunk Web from the detected client IP and forwarding traffic from endpoints.
+- Separate instance roles provide SSM access to the Splunk host and endpoints.
+- The Splunk role can read bootstrap objects and its password parameter. Endpoint roles can read bootstrap scripts and Universal Forwarder packages, but not the password parameter.
+- EC2 metadata access requires IMDSv2.
+- Security groups limit inbound access to the Splunk Web client IP and endpoint-to-Splunk forwarding traffic.
 
 ## Important Files
 
 | File | Purpose |
 |------|---------|
-| `terraform/bootstrap/s3.tf` | Defines the Terraform state bucket, encryption, and public-access block. |
-| `terraform/bootstrap/variables.tf` | Configures state-bucket naming, tags, and options. |
-| `terraform/lab/main.tf` | Declares lab Terraform providers and AWS region. |
-| `terraform/lab/backend.tf` | Configures the lab's S3 state backend. |
-| `terraform/lab/compute.tf` | Defines Splunk and endpoint EC2 instances and their bootstrap inputs. |
+| `terraform/bootstrap/backend.tf` | Configures local state for the state-bucket bootstrap. |
+| `terraform/bootstrap/s3.tf` | Defines the state bucket, encryption, and public-access block. |
+| `terraform/bootstrap/variables.tf` | Declares bootstrap inputs and defaults. |
+| `terraform/lab/main.tf` | Declares lab providers and AWS region. |
+| `terraform/lab/backend.tf` | Configures the lab S3 state backend. |
+| `terraform/lab/compute.tf` | Defines the three EC2 instances and their bootstrap inputs. |
 | `terraform/lab/vpc.tf` | Defines the VPC, public subnet, routes, and security groups. |
-| `terraform/lab/iam.tf` | Defines instance roles, policies, and profiles for SSM and S3 access. |
+| `terraform/lab/iam.tf` | Defines instance roles, policies, and profiles. |
 | `terraform/lab/s3.tf` | Uploads bootstrap scripts to the userdata bucket. |
 | `terraform/lab/ssm.tf` | Generates and stores the Splunk admin password in SSM Parameter Store. |
-| `terraform/lab/variables.tf` | Defines lab AMIs, networking, instance, and package settings. |
-| `terraform/lab/userdata/` | Contains OS-specific bootstrap templates and Splunk/forwarder setup scripts. |
-| `terraform/lab/.github/workflows/terraform.yml` | Defines the intended formatting, validation, and Checkov CI checks. |
-| `README.md` | Project title; contains little operational documentation. |
+| `terraform/lab/locals.tf` | Defines derived resource names, hostnames, and password parameter path. |
+| `terraform/lab/userdata/` | Contains OS-specific bootstrap templates and setup scripts. |
+| `terraform/lab/.github/workflows/terraform.yml` | Defines Terraform formatting, validation, and Checkov CI steps. |
+| `detections/sigma/` | Contains Linux and Windows authentication rules and correlation rules. |
+| `detections/sigma/README.md` | Documents Splunk index scoping, field mapping, and detection validation limits. |
+| `README.md` | Contains the project title. |
 
 ## Dependencies
 - Terraform 1.5 or later is required by the bootstrap configuration.
-- AWS Terraform provider `~> 6.0`; lab also uses `time ~> 0.11` and `random ~> 3.6`.
+- AWS provider `~> 6.0`; the lab also uses `time ~> 0.11` and `random ~> 3.6`.
 - AWS account permissions for Terraform-managed EC2, VPC, IAM, S3, SSM, and related resources.
-- The userdata bucket and required Splunk/Universal Forwarder package objects must be available to the lab.
+- The userdata bucket and required Splunk and Universal Forwarder package objects must exist and be accessible.
+- CI references GitHub Actions, the Terraform setup action, and Checkov.
 
 ## Configuration
-- Terraform inputs and defaults are defined in `terraform/bootstrap/variables.tf` and `terraform/lab/variables.tf`; derived names and the SSM parameter path are in `terraform/lab/locals.tf`.
+- Terraform inputs and defaults are in `terraform/bootstrap/variables.tf` and `terraform/lab/variables.tf`; derived names are in `terraform/lab/locals.tf`.
 - The lab region and backend settings are in `terraform/lab/main.tf` and `terraform/lab/backend.tf`.
-- Keep credentials and sensitive overrides out of version control; `.gitignore` excludes tfvars and Terraform state files.
-- The public client IP used for Splunk Web ingress is fetched dynamically by `terraform/lab/data.tf`.
+- The public IP used for Splunk Web ingress is fetched dynamically in `terraform/lab/data.tf`.
+- Keep credentials and sensitive overrides out of version control; `.gitignore` excludes Terraform state and tfvars files.
+- Sigma deployment must scope Linux detections to `linux_endpoint` and Windows detections to `windows_endpoint`; normalize authentication fields before using correlations.
 
 ## Runtime Flow
 
 ```text
 EC2 boot
-  ├── Splunk host: bootstrap template → S3 setup scripts → Splunk Enterprise install
-  ├── Linux endpoint: bootstrap template → shared Linux setup → Linux forwarder setup
-  └── Windows endpoint: PowerShell bootstrap → Windows forwarder setup
+  ├── Splunk host: bootstrap template → S3 setup scripts and Splunk package → Splunk Enterprise
+  ├── Linux endpoint: bootstrap template → Linux setup → Universal Forwarder
+  └── Windows endpoint: PowerShell bootstrap → Universal Forwarder → hostname update if needed
 
 Linux and Windows Universal Forwarders ── TCP 9997 ──> Splunk Enterprise
 Operator ── HTTPS 8000 ──> Splunk Web
 Operator ── AWS Systems Manager Session Manager ──> EC2 instances
+Authentication events ──> linux_endpoint / windows_endpoint indexes ──> Sigma detections
 ```
 
 ## Deployment Flow
@@ -98,37 +113,41 @@ terraform/bootstrap/
 
 terraform/lab/
   └── configure backend → terraform init → plan / apply
-        ├── create VPC, IAM, SSM parameter, and S3 script objects
+        ├── create network, IAM, SSM parameter, and S3 script objects
         └── create EC2 instances and run their bootstrap flows
 
-GitHub Actions is intended to run format, init, validate, and Checkov checks.
+GitHub Actions is configured to run format, init, validate, and Checkov checks.
 ```
 
 ## External Services
 - AWS EC2, VPC, IAM, S3, Systems Manager, and SSM Parameter Store.
-- `ipv4.icanhazip.com` provides the public client IP used for Splunk Web ingress.
+- `ipv4.icanhazip.com` supplies the public client IP used for Splunk Web ingress.
 - GitHub Actions, Terraform setup action, and Checkov are referenced by the CI workflow.
-- Instance bootstrap downloads OS packages and Starship from external sources.
+- Instance bootstrap accesses external sources for OS packages and Starship.
 
 ## Important Constraints
-- The lab is a single-public-subnet setup with public IPs and unrestricted outbound egress; it is intended as a lab, not a production network design.
-- The userdata bucket, Splunk Enterprise package, and Universal Forwarder packages are prerequisites; Terraform uploads scripts but does not provision these package artifacts.
-- The admin password is generated by Terraform and stored in Terraform state as well as SSM; state access must be protected.
-- AMI IDs and package versions are configured in Terraform variables and may need maintenance.
+- This is a lab network: instances use one public subnet and unrestricted outbound egress.
+- Terraform uploads scripts but does not create the userdata bucket or provide the Splunk and Universal Forwarder package artifacts.
+- The admin password is generated by Terraform and stored in Terraform state as well as SSM; protect state access.
+- AMI IDs and package versions are pinned in Terraform inputs and may need maintenance.
+- The Windows bootstrap expects AWS CLI v2 to be available on its AMI.
+- Sigma correlations need verified source-IP, account, and host fields; Windows failed-logon auditing must be enabled.
 
 ## Current State
-- The repository contains two Terraform configurations: a state-bucket bootstrap and an AWS Splunk lab.
-- Infrastructure definitions include a Splunk server, Linux and Windows forwarding endpoints, SSM access, and S3-based bootstrap.
-- The root README provides only the project title.
+- The repository contains a state-bucket bootstrap and an AWS Splunk lab Terraform configuration.
+- The lab definitions include a Splunk server, Linux and Windows forwarding endpoints, SSM access, and S3-based bootstrap.
+- The root README contains only the project title.
 
 ## Known Issues
-- The GitHub Actions workflow uses `terraform-lab` as its working directory and Checkov target, but the configuration directory in the repository is `terraform/lab`; the workflow paths need correction for CI to run against the lab.
-- The lab expects pre-existing S3 package artifacts and userdata bucket; these are not created by the Terraform configuration shown.
+- The GitHub Actions workflow uses `terraform-lab` as its working directory and Checkov target, but the Terraform configuration is under `terraform/lab`; CI paths need correction.
+- `terraform/bootstrap/variables.tf` declares versioning, force-destroy, and KMS options, but `terraform/bootstrap/s3.tf` hard-codes force-destroy and AES256 encryption and does not configure versioning.
+- The lab expects a pre-existing userdata bucket and package artifacts; these are not provisioned by the lab Terraform configuration.
+- Sigma correlations require verified field extraction and a backend that supports Sigma correlation rules; Windows failed-logon auditing must also be enabled.
 
 ## Metadata
 
-- Architecture version: 1
-- Last updated: 2026-10-09T20:28:40+05:30
-- Last full scan: 2026-10-09T20:28:40+05:30
-- Files represented: 30
+- Architecture version: 5
+- Last updated: 2026-10-10T00:38:27+05:30
+- Last full scan: 2026-10-10T00:38:27+05:30
+- Files represented: 38
 - Last updated by: ai

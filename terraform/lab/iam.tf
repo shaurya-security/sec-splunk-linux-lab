@@ -105,6 +105,8 @@ resource "aws_iam_role_policy" "endpoint_bootstrap_and_uf_s3_read" {
         "arn:aws:s3:::${var.userdata_bucket}/linux-setup.sh",
         "arn:aws:s3:::${var.userdata_bucket}/linux-endpoint.sh",
         "arn:aws:s3:::${var.userdata_bucket}/windows-endpoint.sh",
+        "arn:aws:s3:::${var.userdata_bucket}/userdata-logs.sh",
+        "arn:aws:s3:::${var.userdata_bucket}/userdata-logs.ps1",
       ]
     }]
   })

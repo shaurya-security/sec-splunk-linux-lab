@@ -1,14 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 exec > >(tee /var/log/linux-endpoint-bootstrap.log | logger -t linux-endpoint-bootstrap -s 2>/dev/console) 2>&1
-trap 'echo "ERROR: Linux endpoint bootstrap failed at line $LINENO"' ERR
+trap 'echo "[BOOTSTRAP ERROR] Linux endpoint bootstrap failed at line $LINENO"' ERR
 
 S3_BUCKET="${s3_bucket}"
 SPLUNK_PRIVATE_IP="${splunk_private_ip}"
 UF_S3_URI="s3://${s3_bucket}/${uf_s3_prefix}/${uf_package_key}"
 UF_PACKAGE_KEY="${uf_package_key}"
 
-# Linux endpoint uses the same staged S3 bootstrap flow as the Splunk host.
+hostnamectl set-hostname "${hostname}"
+
 if ! command -v aws >/dev/null 2>&1; then
   dnf install -y awscli2 || dnf install -y aws-cli
 fi
@@ -30,11 +31,10 @@ s3_download() {
     echo "S3 download failed for $key; retrying ($attempt/5)."
     sleep 5
   done
-  echo "ERROR: failed to download $key from S3."
+  echo "[BOOTSTRAP ERROR] Failed to download $key."
   return 1
 }
 
-# Match the Splunk host's sequence: common Linux preparation first, UF second.
 s3_download "linux-setup.sh" "/tmp/linux-setup.sh"
 chmod 700 /tmp/linux-setup.sh
 /tmp/linux-setup.sh
@@ -43,5 +43,9 @@ s3_download "linux-endpoint.sh" "/tmp/linux-endpoint.sh"
 chmod 700 /tmp/linux-endpoint.sh
 /tmp/linux-endpoint.sh
 
+s3_download "userdata-logs.sh" "/home/ssm-user/userdata-logs.sh"
+chmod 700 /home/ssm-user/userdata-logs.sh
+chown ssm-user:ssm-user /home/ssm-user/userdata-logs.sh
+
 rm -f /tmp/linux-setup.sh /tmp/linux-endpoint.sh
-echo "===== Linux endpoint bootstrap complete ====="
+echo "===== Linux endpoint bootstrap complete ($(hostname)) ====="

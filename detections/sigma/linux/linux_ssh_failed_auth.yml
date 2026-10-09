@@ -1,0 +1,31 @@
+title: Linux SSH Authentication Failure
+id: a62d46db-96cc-427d-a64d-55fd280bf2c1
+status: experimental
+description: Detects failed SSH authentication messages collected from the Linux endpoint.
+author: sec-splunk-linux-lab
+references:
+  - https://attack.mitre.org/techniques/T1110/
+date: '2026-10-09'
+logsource:
+  product: linux
+  service: sshd
+detection:
+  failed_auth:
+    message|contains:
+      - 'Failed password'
+      - 'Failed publickey'
+      - 'authentication failure'
+      - 'Invalid user'
+  condition: failed_auth
+fields:
+  - SourceIp
+  - User
+  - ComputerName
+  - message
+falsepositives:
+  - Users mistyping passwords or using stale SSH keys
+level: low
+tags:
+  - attack.credential_access
+  - attack.t1110
+  - attack.t1110.001

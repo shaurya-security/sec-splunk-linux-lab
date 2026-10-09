@@ -2,6 +2,8 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $LogPath = 'C:\ProgramData\WindowsEndpointBootstrap.log'
+$ComputerName = '${hostname}'
+$RestartRequired = $false
 Start-Transcript -Path $LogPath -Append
 
 try {
@@ -15,6 +17,19 @@ try {
     if (-not (Test-Path $AwsExe -PathType Leaf)) {
         throw 'AWS CLI v2 is required on the Windows AMI to retrieve bootstrap and UF files from S3.'
     }
+
+    $LogUtility = Join-Path $env:ProgramData 'userdata-logs.ps1'
+    $LogUtilityS3Uri = "s3://$S3Bucket/userdata-logs.ps1"
+    $LogUtilityDownloaded = $false
+    for ($Attempt = 1; $Attempt -le 5; $Attempt++) {
+        & $AwsExe s3 cp $LogUtilityS3Uri $LogUtility --region $Region
+        if ($LASTEXITCODE -eq 0 -and (Test-Path $LogUtility -PathType Leaf)) {
+            $LogUtilityDownloaded = $true
+            break
+        }
+        Start-Sleep -Seconds 5
+    }
+    if (-not $LogUtilityDownloaded) { throw 'Could not download userdata-logs.ps1 from S3.' }
 
     $EndpointScript = Join-Path $env:TEMP 'windows-endpoint.ps1'
     $ScriptS3Uri = "s3://$S3Bucket/windows-endpoint.sh"
@@ -36,10 +51,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Windows endpoint setup exited with code $LASTEXITCODE." }
 
     Remove-Item $EndpointScript -Force -ErrorAction SilentlyContinue
+    if ($env:COMPUTERNAME -ne $ComputerName) {
+        Rename-Computer -NewName $ComputerName -Force
+        $RestartRequired = $true
+    }
 } catch {
-    Write-Error $_
+    Write-Error "[BOOTSTRAP ERROR] $_"
     exit 1
 } finally {
     Stop-Transcript
 }
+
+if ($RestartRequired) { Restart-Computer -Force }
 </powershell>

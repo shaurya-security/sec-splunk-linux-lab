@@ -49,9 +49,7 @@ try {
         Start-Sleep -Seconds 5
     }
     if (-not $Downloaded) { throw 'Could not download the Windows Universal Forwarder MSI from S3.' }
-    if (-not (Test-Path $InstallerPath -PathType Leaf)) {
-        throw 'The Windows Universal Forwarder MSI download was not created.'
-    }
+
     $Install = Start-Process msiexec.exe -ArgumentList @('/i', $InstallerPath, '/qn', 'AGREETOLICENSE=Yes', "INSTALLDIR=`"$InstallPath`"") -Wait -PassThru
     if ($Install.ExitCode -ne 0) { throw "Universal Forwarder MSI failed with exit code $($Install.ExitCode)." }
 
@@ -91,7 +89,7 @@ renderXml = true
     Remove-Item $InstallerPath -Force -ErrorAction SilentlyContinue
     Write-Output "Windows Universal Forwarder configured for $($SplunkPrivateIp):9997."
 } catch {
-    Write-Error $_
+    Write-Error "[BOOTSTRAP ERROR] $_"
     exit 1
 } finally {
     Stop-Transcript

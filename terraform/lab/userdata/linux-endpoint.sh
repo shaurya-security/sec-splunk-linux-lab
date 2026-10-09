@@ -2,7 +2,7 @@
 set -euo pipefail
 exec > >(tee /var/log/linux-endpoint-forwarder.log | logger -t linux-endpoint-forwarder -s 2>/dev/console) 2>&1
 
-trap 'echo "ERROR: Linux endpoint forwarder setup failed at line ${LINENO}"' ERR
+trap 'echo "[BOOTSTRAP ERROR] Linux endpoint forwarder setup failed at line ${LINENO}"' ERR
 
 : "${SPLUNK_PRIVATE_IP:?SPLUNK_PRIVATE_IP was not supplied}"
 : "${UF_S3_URI:?UF_S3_URI was not supplied}"
