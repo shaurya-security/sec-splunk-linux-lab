@@ -75,3 +75,47 @@ resource "time_sleep" "wait_for_iam" {
     aws_iam_role_policy_attachment.ec2_ssm
   ]
 }
+
+# Endpoint instances receive SSM access and read-only access only to the UF package prefix.
+# They do not receive access to the Splunk admin-password parameter.
+resource "aws_iam_role" "endpoint_ssm_role" {
+  name = "terraform-endpoint-ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "endpoint_bootstrap_and_uf_s3_read" {
+  name = "endpoint-bootstrap-and-uf-read"
+  role = aws_iam_role.endpoint_ssm_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "s3:GetObject"
+      Resource = [
+        "arn:aws:s3:::${var.userdata_bucket}/${var.uf_s3_prefix}/*",
+        "arn:aws:s3:::${var.userdata_bucket}/linux-setup.sh",
+        "arn:aws:s3:::${var.userdata_bucket}/linux-endpoint.sh",
+        "arn:aws:s3:::${var.userdata_bucket}/windows-endpoint.sh",
+      ]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "endpoint_ssm" {
+  role       = aws_iam_role.endpoint_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "endpoint_ssm" {
+  name = "terraform-endpoint-ssm-profile"
+  role = aws_iam_role.endpoint_ssm_role.name
+}

@@ -15,6 +15,14 @@ output "splunk_id-----------------" {
   value = aws_instance.splunk.id
 }
 
+output "linux_endpoint_id---------" {
+  value = aws_instance.linux_endpoint.id
+}
+
+output "windows_endpoint_id-------" {
+  value = aws_instance.windows_endpoint.id
+}
+
 output "splunk_web_url------------" {
   description = "Splunk Web (HTTPS, self-signed cert). Ready a few minutes after apply."
   value       = "https://${aws_instance.splunk.public_ip}:8000"

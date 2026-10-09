@@ -79,19 +79,34 @@ resource "aws_security_group" "splunk_sg" {
     cidr_blocks = ["${chomp(data.http.my_public_ip.response_body)}/32"]
   }
 
-  # Forwarder receiving port - enable when the Windows endpoint exists, e.g.:
-  # ingress {
-  #   description     = "Splunk forwarder receiving"
-  #   from_port       = 9997
-  #   to_port         = 9997
-  #   protocol        = "tcp"
-  #   security_groups = [aws_security_group.windows_endpoint_sg.id]
-  # }
+  # Universal Forwarders can connect only from the endpoint security group.
+  ingress {
+    description     = "Splunk Universal Forwarder receiver"
+    from_port       = 9997
+    to_port         = 9997
+    protocol        = "tcp"
+    security_groups = [aws_security_group.endpoint_sg.id]
+  }
 
   # 8089 (management) intentionally NOT exposed. Access the box via Session Manager.
 
   egress {
     description = "Allow all outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
+resource "aws_security_group" "endpoint_sg" {
+  name        = "${local.owner}-endpoint-sg"
+  description = "Linux and Windows Splunk endpoint instances"
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    description = "Allow outbound package downloads, SSM, and Splunk forwarding"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
