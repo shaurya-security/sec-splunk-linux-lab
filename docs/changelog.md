@@ -77,3 +77,11 @@
 ## 2026-10-10 — Architecture refreshed
 
 - docs/architecture.md rebuilt from a full project scan (version 9, 38 files).
+
+## 2026-10-10 — Trust completion markers in userdata summary
+### Fixed
+- Report overall `COMPLETED` when all expected log files contain completion markers, even if systemd still reports `cloud-final` as active.
+- Count completed and pending logs so an active cloud-init service does not override completed user-data stages.
+### Validation
+- `bash -n terraform/lab/userdata/userdata-logs.sh` — passed.
+- `git diff --check` — passed.

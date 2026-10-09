@@ -35,6 +35,7 @@
 - `terraform/lab/userdata/` contains instance bootstrap templates and OS-specific scripts for installing and configuring Splunk Enterprise and Universal Forwarders.
 - Forwarders collect Linux authentication logs and Windows Security events. Sigma rules in `detections/sigma/` describe individual authentication failures and correlation detections.
 - User-data templates track script hashes; changes can replace the associated EC2 instance.
+- Linux log diagnostics treat per-log completion markers as authoritative; `cloud-final` activity is used only to classify logs without a terminal marker.
 
 ### Networking
 - The lab creates a VPC, one public subnet in `ap-south-1a`, an internet gateway, and a default internet route.
@@ -144,8 +145,8 @@ GitHub Actions runs Terraform and Checkov checks.
 
 ## Metadata
 
-- Architecture version: 9
-- Last updated: 2026-10-10T01:41:27+05:30
+- Architecture version: 10
+- Last updated: 2026-10-10T02:13:11+05:30
 - Last full scan: 2026-10-10T01:41:27+05:30
 - Files represented: 38
 - Last updated by: ai

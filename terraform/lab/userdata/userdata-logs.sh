@@ -64,7 +64,8 @@ scan_log() {
   printf '\n--- %s ---\n' "$log_file"
   if [[ ! -e "$log_file" ]]; then
     if [[ "$USERDATA_ACTIVE" == true ]]; then
-      printf 'Status: NOT STARTED YET (cloud-final is still running; log has not been created)\n'
+      printf 'Status: NOT STARTED YET (cloud-final is active; log has not been created)\n'
+      PENDING=$((PENDING + 1))
     elif [[ "$BOOT_FINISHED" == true ]]; then
       printf 'Status: MISSING after cloud-init finished\n'
       PROBLEMS=$((PROBLEMS + 1))
@@ -99,13 +100,16 @@ scan_log() {
     done <<< "$error_lines"
   elif [[ -n "$complete_line" ]]; then
     printf 'Status: COMPLETED\n'
+    COMPLETED=$((COMPLETED + 1))
   elif [[ "$USERDATA_ACTIVE" == true ]]; then
     printf 'Status: IN_PROGRESS (cloud-final is active; last log write %s seconds ago)\n' "$age_seconds"
+    PENDING=$((PENDING + 1))
   elif [[ "$BOOT_FINISHED" == true ]]; then
     printf 'Status: INCOMPLETE / STOPPED (no completion marker; last log write %s seconds ago)\n' "$age_seconds"
     PROBLEMS=$((PROBLEMS + 1))
   else
     printf 'Status: NOT COMPLETE; cloud-init state is unknown (last log write %s seconds ago)\n' "$age_seconds"
+    PENDING=$((PENDING + 1))
   fi
 
   if [[ -n "$complete_line" ]]; then
@@ -120,13 +124,15 @@ scan_log() {
 main() {
   local role cloud_final_state log_name
   local -a log_names
-  local problems=0 scanned=0
+  local problems=0 scanned=0 completed=0 pending=0 expected=0
 
   role="$(select_role "${1:-auto}")" || return $?
   cloud_final_state="$(systemctl is-active cloud-final.service 2>/dev/null || true)"
   USERDATA_ACTIVE=false
   BOOT_FINISHED=false
   PROBLEMS=0
+  COMPLETED=0
+  PENDING=0
   SCANNED=0
   case "$cloud_final_state" in
     active|activating) USERDATA_ACTIVE=true ;;
@@ -142,21 +148,31 @@ main() {
     linux-endpoint) log_names=(linux-endpoint-bootstrap.log linux-endpoint-forwarder.log) ;;
   esac
 
+  expected="${#log_names[@]}"
   for log_name in "${log_names[@]}"; do
     scan_log "$log_name"
   done
 
   problems="$PROBLEMS"
+  completed="$COMPLETED"
+  pending="$PENDING"
   scanned="$SCANNED"
   if ((problems > 0)); then
     printf '\nOverall status: FAILED / INCOMPLETE (%s problem(s), %s log(s) scanned)\n' "$problems" "$scanned"
     return 1
+  elif ((completed == expected)); then
+    if [[ "$USERDATA_ACTIVE" == true ]]; then
+      printf '\nOverall status: COMPLETED (%s/%s log completion markers found; cloud-final reports active)\n' "$completed" "$expected"
+    else
+      printf '\nOverall status: COMPLETED (%s/%s log completion markers found)\n' "$completed" "$expected"
+    fi
   elif [[ "$USERDATA_ACTIVE" == true ]]; then
-    printf '\nOverall status: IN_PROGRESS (%s log(s) scanned; cloud-final is active)\n' "$scanned"
+    printf '\nOverall status: IN_PROGRESS (%s/%s logs complete; %s pending; cloud-final is active)\n' "$completed" "$expected" "$pending"
   elif [[ "$BOOT_FINISHED" == true ]]; then
-    printf '\nOverall status: COMPLETED (%s log(s) scanned)\n' "$scanned"
+    printf '\nOverall status: INCOMPLETE (%s/%s logs have completion markers; cloud-init has finished)\n' "$completed" "$expected"
+    return 1
   else
-    printf '\nOverall status: UNKNOWN (%s log(s) scanned)\n' "$scanned"
+    printf '\nOverall status: UNKNOWN (%s/%s logs complete; %s pending)\n' "$completed" "$expected" "$pending"
   fi
   printf 'Scan finished: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
 }
