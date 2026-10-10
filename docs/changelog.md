@@ -97,3 +97,33 @@
 - `bash -n terraform/lab/userdata/linux-endpoint.sh` — passed.
 - Parsed `detections/sigma/linux/linux_ssh_failed_auth.yml` with PyYAML — passed.
 - `git diff --check` — passed.
+
+## 2026-10-10 — Resolve Windows Universal Forwarder install path
+### Fixed
+- Discover the Universal Forwarder install directory from Windows uninstall registry metadata and common paths, then verify `bin\\splunk.exe` before writing app configuration.
+- Report an explicit bootstrap error if MSI reports success but the executable cannot be found.
+### Validation
+- `terraform -chdir=terraform/lab fmt -check -recursive` — passed.
+- `terraform -chdir=terraform/lab validate` — passed.
+- `git diff --check` — passed.
+- PowerShell syntax validation was unavailable; neither `pwsh` nor `powershell` is installed in this environment.
+
+## 2026-10-10 — Install AWS CLI in Windows bootstrap when absent
+### Fixed
+- Download and install AWS CLI v2 from the official AWS MSI when it is missing, verify its Authenticode signature, and confirm `aws.exe` exists before S3 bootstrap downloads.
+### Validation
+- `terraform -chdir=terraform/lab fmt -check -recursive` — passed.
+- `terraform -chdir=terraform/lab validate` — passed.
+- `git diff --check` — passed.
+- PowerShell syntax validation was unavailable; neither `pwsh` nor `powershell` is installed in this environment.
+
+## 2026-10-10 — Centralize Windows endpoint bootstrap assets
+### Changed
+- Create `C:\\Soc-Lab` with `config`, `logs`, and `packages` subdirectories and configure the PowerShell profile to start there.
+- Stage Windows bootstrap scripts, diagnostics helper, logs, and installer packages in the SOC-Lab directory; store authored forwarder configs there before copying them to the installed Splunk app directory.
+- Update the Windows diagnostics helper to read logs from `C:\\Soc-Lab\\logs`.
+### Validation
+- `terraform -chdir=terraform/lab fmt -check -recursive` — passed.
+- `terraform -chdir=terraform/lab validate` — passed.
+- `git diff --check` — passed.
+- PowerShell syntax validation was unavailable; neither `pwsh` nor `powershell` is installed in this environment.

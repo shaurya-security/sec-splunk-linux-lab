@@ -6,8 +6,8 @@ $CompleteMarker = '[BOOTSTRAP_COMPLETE]'
 $ContextLines = 10
 $StaleAfterSeconds = 300
 $LogPaths = @(
-    'C:\ProgramData\WindowsEndpointBootstrap.log',
-    'C:\ProgramData\SplunkEndpointBootstrap.log'
+    'C:\Soc-Lab\logs\WindowsEndpointBootstrap.log',
+    'C:\Soc-Lab\logs\SplunkEndpointBootstrap.log'
 )
 $FailureCount = 0
 $CompletedCount = 0

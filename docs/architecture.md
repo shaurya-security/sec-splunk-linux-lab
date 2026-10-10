@@ -35,6 +35,8 @@
 - `terraform/lab/userdata/` contains instance bootstrap templates and OS-specific scripts for installing and configuring Splunk Enterprise and Universal Forwarders.
 - The Splunk host and Linux endpoint collect `/var/log/audit/audit.log` as `linux_audit`, using separate indexes (`linux_audit` and `linux_endpoint`); Windows forwards Security events to `windows_endpoint`.
 - User-data templates track script hashes; changes can replace the associated EC2 instance.
+- Windows bootstrap artifacts, logs, and authored forwarder configs are centralized under `C:\Soc-Lab`; active Splunk app configs are copied into the discovered Universal Forwarder install directory.
+- Windows forwarder setup resolves the MSI install directory from registry metadata/common paths and verifies `splunk.exe` before configuring inputs.
 - Linux log diagnostics treat per-log completion markers as authoritative; `cloud-final` activity is used only to classify logs without a terminal marker.
 
 ### Networking
@@ -71,6 +73,7 @@
 | `terraform/lab/s3.tf` | Uploads bootstrap scripts to the userdata bucket. |
 | `terraform/lab/ssm.tf` | Generates and stores the Splunk admin password in SSM Parameter Store. |
 | `terraform/lab/userdata/` | Contains instance bootstrap templates, setup scripts, and log helpers. |
+| `terraform/lab/userdata/windows-endpoint-bootstrap.ps1.tpl` and `windows-endpoint.sh` | Set up `C:\Soc-Lab`, stage Windows bootstrap assets, and install Universal Forwarder configs. |
 | `terraform/lab/.github/workflows/terraform.yml` | Defines Terraform and Checkov CI checks. |
 | `detections/sigma/` | Contains Linux and Windows authentication rules and correlation rules. |
 | `detections/sigma/README.md` | Documents index scoping, field mapping, and detection validation limits. |
@@ -122,6 +125,7 @@ GitHub Actions runs Terraform and Checkov checks.
 - `ipv4.icanhazip.com` supplies the public client IP used for Splunk Web ingress.
 - GitHub Actions, the Terraform setup action, and Checkov are referenced by CI.
 - Instance bootstrap accesses external sources for OS packages and Starship.
+- Windows bootstrap downloads the AWS CLI v2 MSI from `awscli.amazonaws.com` if the AMI does not include it.
 
 ## Important Constraints
 - This is a lab network: instances use one public subnet and unrestricted outbound egress.
@@ -129,7 +133,7 @@ GitHub Actions runs Terraform and Checkov checks.
 - The admin password is stored in Terraform state as well as SSM; protect state access.
 - AMI IDs and package versions are pinned and may need maintenance.
 - Changes to hashed user-data scripts can replace EC2 instances; root volumes are deleted on termination.
-- The Windows bootstrap expects AWS CLI v2 to be available on its AMI.
+- The Windows bootstrap installs AWS CLI v2 from the official signed AWS MSI when it is absent from the AMI.
 - Sigma correlations require verified source-IP, account, and host fields. Windows failed-logon auditing must be enabled.
 
 ## Current State
@@ -145,8 +149,8 @@ GitHub Actions runs Terraform and Checkov checks.
 
 ## Metadata
 
-- Architecture version: 11
-- Last updated: 2026-10-10T21:58:02+05:30
+- Architecture version: 14
+- Last updated: 2026-10-10T23:28:12+05:30
 - Last full scan: 2026-10-10T01:41:27+05:30
-- Files represented: 38
+- Files represented: 40
 - Last updated by: ai
