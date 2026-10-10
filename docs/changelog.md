@@ -127,3 +127,27 @@
 - `terraform -chdir=terraform/lab validate` — passed.
 - `git diff --check` — passed.
 - PowerShell syntax validation was unavailable; neither `pwsh` nor `powershell` is installed in this environment.
+
+## 2026-10-10 — Improve diagnostics presentation and document the project
+### Changed
+- Added terminal-aware colors, clearer status sections, and progress bars to the Linux and Windows userdata log helpers.
+- Replaced the title-only README with project setup, deployment, operations, Sigma, and lifecycle guidance.
+- Updated architecture notes to describe the README and Terraform backend version requirement.
+### Validation
+- `terraform -chdir=terraform/lab fmt -check -recursive` — passed.
+- `terraform -chdir=terraform/lab validate` — passed.
+- `bash -n terraform/lab/userdata/userdata-logs.sh` — passed.
+- `git diff --check` — passed.
+- PowerShell syntax validation was unavailable; neither `pwsh` nor `powershell` is installed in this environment.
+
+## 2026-10-10 — Improve log helper presentation and document the project
+### Changed
+- Added terminal-aware colors, clearer status sections, and progress bars to the Linux and Windows userdata log helpers.
+- Replaced the title-only README with project setup, deployment, operations, Sigma, and lifecycle guidance.
+- Updated architecture notes for the README and lab Terraform backend version requirement.
+### Validation
+- `terraform -chdir=terraform/lab fmt -check -recursive` — passed.
+- `terraform -chdir=terraform/lab validate` — passed.
+- `bash -n terraform/lab/userdata/userdata-logs.sh` — passed.
+- `git diff --check` — passed.
+- PowerShell syntax validation was unavailable; neither `pwsh` nor `powershell` is installed in this environment.

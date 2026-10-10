@@ -77,9 +77,12 @@
 | `terraform/lab/.github/workflows/terraform.yml` | Defines Terraform and Checkov CI checks. |
 | `detections/sigma/` | Contains Linux and Windows authentication rules and correlation rules. |
 | `detections/sigma/README.md` | Documents index scoping, field mapping, and detection validation limits. |
+| `README.md` | Project overview, prerequisites, deployment, operations, and safety notes. |
 
 ## Dependencies
 - Terraform 1.5 or later is required by the bootstrap configuration.
+- The lab S3 backend uses lockfile support and requires Terraform 1.10 or later.
+- The lab uses S3 backend lockfile support and should be run with Terraform 1.10 or later.
 - AWS provider `~> 6.0`; the lab also uses `time ~> 0.11` and `random ~> 3.6`.
 - AWS account permissions for Terraform-managed EC2, VPC, IAM, S3, and SSM resources.
 - The userdata bucket and required Splunk and Universal Forwarder package objects must exist and be accessible.
@@ -139,7 +142,7 @@ GitHub Actions runs Terraform and Checkov checks.
 ## Current State
 - The repository contains a state-bucket bootstrap and an AWS Splunk lab Terraform configuration.
 - The lab defines a Splunk server, Linux and Windows forwarding endpoints, Session Manager access, and S3-based bootstrap.
-- The root README contains only the project title.
+- The root README documents setup, deployment, access, operations, and lifecycle warnings.
 
 ## Known Issues
 - The GitHub Actions workflow is documented as using `terraform-lab` as its working directory and Checkov target, while the Terraform configuration is under `terraform/lab`; CI paths may need correction.
