@@ -65,10 +65,20 @@ index=linux_endpoint sourcetype=linux_audit
 index=windows_endpoint
 ```
 
-To look for Windows failed logons, inspect the actual extracted event-ID field (`EventCode` or `EventID` can vary):
+Windows Security events are collected with XML rendering. In current events, the event ID remains in raw XML rather than being extracted as `EventCode`; this is a Splunk field-extraction issue, not a Sigma rule issue. Sigma rules in this repository are not automatically converted or run.
+
+Search the raw XML for failed logons (Event ID 4625):
 
 ```spl
-index=windows_endpoint EventCode=4625
+index=windows_endpoint "<EventID>4625</EventID>"
+```
+
+To extract the XML event ID for one search and summarize it:
+
+```spl
+index=windows_endpoint "<EventID>4625</EventID>"
+| rex field=_raw "<EventID>(?<EventID>[0-9]+)</EventID>"
+| stats count by EventID host
 ```
 
 ## Sigma detections

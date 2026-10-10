@@ -152,8 +152,8 @@ GitHub Actions runs Terraform and Checkov checks.
 
 ## Metadata
 
-- Architecture version: 14
-- Last updated: 2026-10-10T23:28:12+05:30
+- Architecture version: 15
+- Last updated: 2026-10-10T23:38:10+05:30
 - Last full scan: 2026-10-10T01:41:27+05:30
-- Files represented: 40
+- Files represented: 38
 - Last updated by: ai

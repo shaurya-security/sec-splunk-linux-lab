@@ -151,3 +151,10 @@
 - `bash -n terraform/lab/userdata/userdata-logs.sh` — passed.
 - `git diff --check` — passed.
 - PowerShell syntax validation was unavailable; neither `pwsh` nor `powershell` is installed in this environment.
+
+## 2026-10-10 — Document Windows XML event search
+### Changed
+- Explain that Windows Event ID 4625 is currently present in raw XML, not extracted as `EventCode`, and document a raw XML search plus inline `rex` extraction example.
+- Clarify that the repository's Sigma YAML rules are not automatically converted or run in Splunk.
+### Validation
+- `git diff --check` — passed.
