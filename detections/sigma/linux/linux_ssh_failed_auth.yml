@@ -1,22 +1,22 @@
 title: Linux SSH Authentication Failure
 id: a62d46db-96cc-427d-a64d-55fd280bf2c1
 status: experimental
-description: Detects failed SSH authentication messages collected from the Linux endpoint.
+description: Detects failed SSH authentication records collected from the Linux endpoint's auditd log.
 author: sec-splunk-linux-lab
 references:
   - https://attack.mitre.org/techniques/T1110/
 date: '2026-10-09'
 logsource:
   product: linux
-  service: sshd
+  service: auditd
 detection:
-  failed_auth:
+  ssh_auth_record:
     message|contains:
-      - 'Failed password'
-      - 'Failed publickey'
-      - 'authentication failure'
-      - 'Invalid user'
-  condition: failed_auth
+      - 'type=USER_AUTH'
+      - 'type=USER_LOGIN'
+  failed_result:
+    message|contains: 'res=failed'
+  condition: ssh_auth_record and failed_result
 fields:
   - SourceIp
   - User

@@ -85,3 +85,15 @@
 ### Validation
 - `bash -n terraform/lab/userdata/userdata-logs.sh` — passed.
 - `git diff --check` — passed.
+
+## 2026-10-10 — Align Linux endpoint collection with auditd
+### Changed
+- Configure the Linux endpoint Universal Forwarder to monitor `/var/log/audit/audit.log`, matching the Splunk host's auditd source while retaining the endpoint's `linux_endpoint` index.
+- Enable auditd and grant the forwarder rotation-safe read access through the `splunk-audit` group and a systemd supplementary-group override.
+- Update the Linux Sigma event rule and field-mapping guidance for auditd `USER_AUTH` / `USER_LOGIN` failure records.
+### Validation
+- `terraform -chdir=terraform/lab fmt -check -recursive` — passed.
+- `terraform -chdir=terraform/lab validate` — passed.
+- `bash -n terraform/lab/userdata/linux-endpoint.sh` — passed.
+- Parsed `detections/sigma/linux/linux_ssh_failed_auth.yml` with PyYAML — passed.
+- `git diff --check` — passed.
