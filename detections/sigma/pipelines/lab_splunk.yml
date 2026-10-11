@@ -25,6 +25,7 @@ transformations:
       mapping:
           EventID: EventCode
           Computer: host
+          IpAddress: src_ip
       rule_conditions:
           - type: logsource
             product: windows

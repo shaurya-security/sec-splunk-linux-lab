@@ -1,0 +1,44 @@
+# Saved-search deployment manifest, keyed by Sigma rule ID.
+# Schedules, windows and thresholds follow decisions.txt. SPL lives in detections/generated/.
+defaults:
+    app: search                 # REST namespace: servicesNS/nobody/<app>; app-level sharing
+    cron_schedule: '*/1 * * * *'
+    latest: now
+    alert_comparator: greater than
+    alert_threshold: 0          # trigger when the query returns >= 1 result
+    alert_track: true           # triggered-alert history is the only active notification path
+    email:
+        enabled: false          # stays false until SMTP and a real recipient are verified
+        to: '<YOUR_EMAIL@example.com>'   # placeholder; real value comes from deployment-only config
+
+rules:
+    a62d46db-96cc-427d-a64d-55fd280bf2c1:
+        name: Sigma - Linux SSH Authentication Failure
+        spl: detections/generated/lnx_auditd_ssh_failed_auth.spl
+        earliest: -5m
+        severity: 2             # Splunk alert.severity: 1 info, 2 low, 3 medium, 4 high, 5 critical
+    5e477b99-8234-4c1e-a2bc-c48f1342b5c5:
+        name: Sigma - Windows Failed Logon
+        spl: detections/generated/win_security_failed_logon.spl
+        earliest: -5m
+        severity: 2
+    4e63053b-3c4b-4318-8979-760535dc7898:
+        name: Sigma - Linux SSH Brute Force From One Source
+        spl: detections/generated/corr_lnx_auditd_ssh_brute_force.spl
+        earliest: -5m
+        severity: 3
+    0e36cb3c-2732-43f5-99f5-559f53a33010:
+        name: Sigma - Linux SSH Password Spray From One Source
+        spl: detections/generated/corr_lnx_auditd_ssh_password_spray.spl
+        earliest: -10m
+        severity: 4
+    beaa72a4-5157-43a3-94a9-a3be95b31070:
+        name: Sigma - Windows Brute Force Against One Account
+        spl: detections/generated/corr_win_security_brute_force.spl
+        earliest: -5m
+        severity: 3
+    73b89a66-7b9e-4aef-9718-616806f2da32:
+        name: Sigma - Windows Password Spray From One Source
+        spl: detections/generated/corr_win_security_password_spray.spl
+        earliest: -10m
+        severity: 4

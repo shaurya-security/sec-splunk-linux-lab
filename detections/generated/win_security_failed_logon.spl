@@ -1,0 +1,1 @@
+index=windows_endpoint source="XmlWinEventLog:Security" EventCode=4625

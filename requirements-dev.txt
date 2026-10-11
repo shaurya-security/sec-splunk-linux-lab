@@ -1,0 +1,4 @@
+# Pin exact versions once resolved on a machine with PyPI access (not yet pinned).
+sigma-cli
+pysigma-backend-splunk
+PyYAML

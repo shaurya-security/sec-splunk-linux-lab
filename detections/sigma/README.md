@@ -114,3 +114,10 @@ index=linux_endpoint sourcetype=linux_audit type=USER_AUTH res=failed*
 3. Tune false positives and thresholds before creating alert actions.
 
 The endpoint security groups intentionally have no inbound rules and Session Manager is the access path. These rules detect authentication failures that are logged; they do not imply that internet SSH or RDP attempts can reach the endpoints. Do not open public SSH/RDP for testing. Use controlled local or synthetic events instead.
+
+## Deploying saved searches
+
+`detections/sigma/deployment.yml` holds schedules and trigger policy; SPL is in `detections/generated/`.
+Dry run locally: `python3 tools/deploy_sigma_searches.py`. Real deploys run on the Splunk host through
+`tools/release.sh` (SSM). Searches are created disabled; review them, then rerun with `--enable`.
+Email stays off until SMTP and a real recipient are verified.

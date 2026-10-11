@@ -1,0 +1,1 @@
+index IN (linux_endpoint, linux_audit) sourcetype=linux_audit type IN ("USER_AUTH", "USER_LOGIN") exe="*/sshd" res=failed*
