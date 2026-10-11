@@ -1,0 +1,4 @@
+index IN (linux_endpoint, linux_audit) sourcetype=linux_audit type IN ("USER_AUTH", "USER_LOGIN") exe="*/sshd" res=failed*
+| stats count AS failed_attempts, dc(acct) AS accounts, min(_time) AS first_seen, max(_time) AS last_seen BY host addr
+| where failed_attempts > 5
+| eval first_seen=strftime(first_seen, "%F %T"), last_seen=strftime(last_seen, "%F %T")

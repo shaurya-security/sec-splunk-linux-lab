@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Idempotently deploy the Sigma-derived saved searches to the local Splunk REST API.
+"""Idempotently deploy the SPL saved searches to the local Splunk REST API.
 
 Runs ON the Splunk host (via SSM Run Command). Talks only to https://127.0.0.1:8089; port 8089
 is never exposed. Default is a dry run. Searches are created DISABLED unless --enable is given.
 
-    deploy_sigma_searches.py --repo-root . [--apply] [--enable] [--report out.json]
+    deploy_searches.py --repo-root . [--apply] [--enable] [--report out.json]
 
 Password: env SPLUNK_PASSWORD, else SSM SecureString named by --password-param (via `aws` CLI).
 It is held in memory only and never printed.
@@ -38,7 +38,7 @@ class DeployError(Exception):
 
 
 def load_manifest(root):
-    with open(os.path.join(root, "detections/sigma/deployment.yml")) as f:
+    with open(os.path.join(root, "detections/deployment.yml")) as f:
         m = yaml.safe_load(f)
     defaults, rules = m.get("defaults", {}), m.get("rules", {})
     out = {}
@@ -52,26 +52,13 @@ def load_manifest(root):
     return out
 
 
-def sigma_rule_ids(root):
-    ids = set()
-    base = os.path.join(root, "detections/sigma")
-    for d, _, files in os.walk(base):
-        if os.path.basename(d) in ("pipelines", "generated"):
-            continue
-        for fn in files:
-            if fn.endswith(".yml") and fn != "deployment.yml":
-                with open(os.path.join(d, fn)) as f:
-                    doc = yaml.safe_load(f)
-                if isinstance(doc, dict) and doc.get("id"):
-                    ids.add(doc["id"])
-    return ids
-
-
 def validate(root, rules):
     problems = []
-    ids = sigma_rule_ids(root)
-    if set(rules) != ids:
-        problems.append(f"manifest/rule mismatch: missing={sorted(ids - set(rules))} extra={sorted(set(rules) - ids)}")
+    spl_dir = os.path.join(root, "detections/spl")
+    on_disk = {f"detections/spl/{f}" for f in os.listdir(spl_dir) if f.endswith(".spl")}
+    listed = {r["spl"] for r in rules.values()}
+    if on_disk != listed:
+        problems.append(f"manifest/SPL mismatch: unlisted={sorted(on_disk - listed)} missing={sorted(listed - on_disk)}")
     for rid, r in rules.items():
         if not r["spl_text"]:
             problems.append(f"{rid}: empty SPL")
@@ -99,7 +86,7 @@ def build_params(r, enable):
         "alert_threshold": str(r["alert_threshold"]),
         "alert.track": "1" if r["alert_track"] else "0",
         "alert.severity": str(r["severity"]),
-        "description": f"Managed by deploy_sigma_searches.py; spl_sha256={r['spl_sha256']}",
+        "description": f"Managed by deploy_searches.py; spl_sha256={r['spl_sha256']}",
         "disabled": "0" if enable else "1",
     }
     email = r["email"]

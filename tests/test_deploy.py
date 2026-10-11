@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-import deploy_sigma_searches as d  # noqa: E402
+import deploy_searches as d  # noqa: E402
 
 STORE = {}
 
@@ -69,9 +69,9 @@ class DeployTests(unittest.TestCase):
         os.environ["SPLUNK_PASSWORD"] = "test-only"
         return d.main(["--repo-root", ROOT, "--splunk-url", self.url, *extra])
 
-    def test_manifest_covers_all_six_rules(self):
+    def test_manifest_covers_both_rules(self):
         rules = d.load_manifest(ROOT)
-        self.assertEqual(len(rules), 6)
+        self.assertEqual(len(rules), 2)
         self.assertEqual(d.validate(ROOT, rules), [])
 
     def test_dry_run_writes_nothing(self):
@@ -82,20 +82,21 @@ class DeployTests(unittest.TestCase):
     def test_apply_creates_disabled_then_is_idempotent(self):
         STORE.clear()
         self.assertEqual(self.run_main("--apply"), 0)
-        self.assertEqual(len(STORE), 6)
+        self.assertEqual(len(STORE), 2)
         self.assertTrue(all(v["disabled"] == "1" and v["action.email"] == "0" and v["alert.track"] == "1"
                             for v in STORE.values()))
         self.assertEqual(self.run_main("--apply"), 0)
-        self.assertEqual(len(STORE), 6)  # no duplicates
+        self.assertEqual(len(STORE), 2)  # no duplicates
         self.assertEqual(self.run_main("--apply", "--enable"), 0)
         self.assertTrue(all(v["disabled"] == "0" for v in STORE.values()))
 
-    def test_windows_spray_schedule(self):
+    def test_schedule_and_threshold(self):
         STORE.clear()
         self.assertEqual(self.run_main("--apply"), 0)
-        v = STORE["Sigma - Windows Password Spray From One Source"]
-        self.assertEqual((v["cron_schedule"], v["dispatch.earliest_time"]), ("*/1 * * * *", "-10m"))
-        self.assertIn("dc(TargetUserName)", v["search"])
+        for name in ("Linux SSH Brute Force", "Windows Failed Logon Brute Force"):
+            v = STORE[name]
+            self.assertEqual((v["cron_schedule"], v["dispatch.earliest_time"]), ("*/1 * * * *", "-5m"))
+            self.assertIn("failed_attempts > 5", v["search"])
 
     def test_email_placeholder_rejected(self):
         rules = d.load_manifest(ROOT)

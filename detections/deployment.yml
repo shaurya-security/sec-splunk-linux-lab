@@ -1,0 +1,24 @@
+# Saved-search deployment manifest. SPL lives in detections/spl/.
+# Both searches run every minute over a 5-minute window and alert when the query returns a row
+# (more than 5 failed logons from one source against one host in the window).
+defaults:
+    app: search                 # REST namespace: servicesNS/nobody/<app>
+    cron_schedule: '*/1 * * * *'
+    earliest: -5m
+    latest: now
+    alert_comparator: greater than
+    alert_threshold: 0
+    alert_track: true           # triggered-alert history is the only active notification path
+    email:
+        enabled: false          # stays false until SMTP and a real recipient are verified
+        to: '<YOUR_EMAIL@example.com>'
+
+rules:
+    linux_ssh_brute_force:
+        name: Linux SSH Brute Force
+        spl: detections/spl/linux_ssh_brute_force.spl
+        severity: 3             # Splunk alert.severity: 1 info, 2 low, 3 medium, 4 high, 5 critical
+    windows_failed_logon_brute_force:
+        name: Windows Failed Logon Brute Force
+        spl: detections/spl/windows_failed_logon_brute_force.spl
+        severity: 3

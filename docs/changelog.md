@@ -178,22 +178,19 @@
 - Parsed all rule and pipeline files with PyYAML and checked them against the Sigma rule and correlation rule structure.
 - `sigma check` / `sigma convert` and Terraform validation were not run: PyPI access was blocked and Terraform is not installed in this environment.
 
-## 2026-10-11 — Sigma-to-Splunk deployment skeleton
+## 2026-10-11 — SPL brute-force alerts and deploy client
 ### Added
-- `detections/generated/*.spl`: six SPL files (2 event, 4 correlation). Hand-authored; NOT yet verified against `sigma-cli`/`pysigma-backend-splunk`
-(PyPI unreachable in the authoring environment).
-- `detections/sigma/deployment.yml`: per-rule schedule (`*/1`), lookback (-5m/-10m), trigger, severity; email disabled with placeholder recipient;
-`alert.track=1`.
-- `tools/deploy_sigma_searches.py`: idempotent REST upserter (dry-run default, loopback-only, password from SSM/env, searches created disabled unless
-`--enable`, add-on and field preflight, JSON report without credentials).
-- `tools/release.sh`: package, upload to S3, run on the Splunk host via SSM. No inbound 8089.
-- `tests/test_deploy.py` (mock Splunk REST; 6 tests), `requirements-dev.txt` (unpinned, see below).
-### Changed
-- `lab_splunk.yml` pipeline maps Windows `IpAddress` -> `src_ip`.
+- `detections/spl/`: Linux SSH and Windows failed-logon brute-force searches (>5 failures from one source against one host, 5-minute window).
+- `detections/deployment.yml`, `tools/deploy_searches.py` (idempotent local-REST upserter; dry-run default; searches created disabled; loopback only;
+password from SSM/env), `tools/release.sh` (S3 + SSM; no inbound 8089), `tests/test_deploy.py` (mock Splunk, 6 tests).
 ### Removed
-- `terraform/lab/.github/` and `terraform/lab/.checkov.yaml`. The project now has no active CI.
+- All Sigma rules, pipeline and docs (`detections/sigma/`); detections are SPL-only.
+- `terraform/lab/.github/` and `terraform/lab/.checkov.yaml`; the project has no active CI.
 ### Open items
-- Pin and run the converter, diff its output against `detections/generated/`.
-- Verify against a real Splunk 10.4 instance (REST encoding, namespace) and field extraction; SMTP/recipient before enabling email.
+- Run against a real Splunk 10.4 host; verify add-on field extraction; SMTP and recipient before enabling email.
 ### Validation
-- `python3 -I -m unittest discover -s tests` — passed (mock server only; no real Splunk or Terraform run).
+- `python3 -I -m unittest discover -s tests` — passed (mock server only).
+
+## 2026-10-12 — Architecture refreshed
+
+- docs/architecture.md rebuilt from a full project scan (version 17, 36 files).

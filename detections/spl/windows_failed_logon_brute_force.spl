@@ -1,0 +1,6 @@
+index=windows_endpoint source="XmlWinEventLog:Security" EventCode=4625
+| eval src_ip=if(IpAddress IN ("-", "::1") OR match(IpAddress, "^127\."), null(), IpAddress)
+| where isnotnull(src_ip)
+| stats count AS failed_attempts, dc(TargetUserName) AS accounts, min(_time) AS first_seen, max(_time) AS last_seen BY host src_ip
+| where failed_attempts > 5
+| eval first_seen=strftime(first_seen, "%F %T"), last_seen=strftime(last_seen, "%F %T")

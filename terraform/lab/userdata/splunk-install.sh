@@ -362,7 +362,7 @@ EOF
 #   Splunk_TA_nix     - Splunk Add-on for Unix and Linux (Splunkbase 833)
 #       Owns the linux_audit sourcetype used by the auditd monitor inputs.
 #
-# The Sigma rules in detections/sigma/ depend on these fields. Any other .tgz/.spl
+# The saved searches in detections/spl/ depend on these fields. Any other .tgz/.spl
 # placed under apps/ is still installed.
 ADDONS_PRESENT=true
 EXPECTED_ADDONS=(Splunk_TA_windows Splunk_TA_nix)
@@ -381,7 +381,7 @@ for addon in "${EXPECTED_ADDONS[@]}"; do
         echo "OK      : add-on ${addon} installed"
     else
         echo "WARNING : add-on ${addon} not found under s3://<userdata bucket>/apps/"
-        echo "          Sigma field extractions will be missing; see README.md (Splunk add-ons)"
+        echo "          Search field extractions will be missing; see README.md (Splunk add-ons)"
         ADDONS_PRESENT=false
     fi
 done
@@ -481,7 +481,7 @@ for check in "linux_audit:Splunk_TA_nix" "XmlWinEventLog:Splunk_TA_windows"; do
         echo "OK      : ${check_addon} props loaded for ${check_sourcetype}"
     else
         echo "WARNING : could not verify ${check_addon} props for ${check_sourcetype} with btool"
-        echo "          run the field check in detections/sigma/README.md after events arrive"
+        echo "          run the field check in detections/README.md after events arrive"
     fi
 done
 
