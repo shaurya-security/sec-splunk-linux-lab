@@ -351,7 +351,22 @@ enableSplunkWebSSL = true
 httpport = 8000
 EOF
 
-# Optional apps staged in S3 (e.g. Splunk Add-on for Microsoft Windows later).
+# Splunk add-ons staged in S3 under apps/ (.tgz or .spl downloaded from Splunkbase).
+#
+# Parsing and field extraction happen on this all-in-one instance, so the add-ons
+# are installed here only; the Universal Forwarders just forward raw events.
+#
+#   Splunk_TA_windows - Splunk Add-on for Microsoft Windows (Splunkbase 742)
+#       Search-time extractions for XmlWinEventLog (renderXml = true) events:
+#       EventCode, TargetUserName, IpAddress, LogonType, ...
+#   Splunk_TA_nix     - Splunk Add-on for Unix and Linux (Splunkbase 833)
+#       Owns the linux_audit sourcetype used by the auditd monitor inputs.
+#
+# The Sigma rules in detections/sigma/ depend on these fields. Any other .tgz/.spl
+# placed under apps/ is still installed.
+ADDONS_PRESENT=true
+EXPECTED_ADDONS=(Splunk_TA_windows Splunk_TA_nix)
+
 shopt -s nullglob
 
 for pkg in "${BOOTSTRAP_DIR}"/apps/*.tgz "${BOOTSTRAP_DIR}"/apps/*.spl; do
@@ -360,6 +375,16 @@ for pkg in "${BOOTSTRAP_DIR}"/apps/*.tgz "${BOOTSTRAP_DIR}"/apps/*.spl; do
 done
 
 shopt -u nullglob
+
+for addon in "${EXPECTED_ADDONS[@]}"; do
+    if [ -d "${SPLUNK_HOME}/etc/apps/${addon}" ]; then
+        echo "OK      : add-on ${addon} installed"
+    else
+        echo "WARNING : add-on ${addon} not found under s3://<userdata bucket>/apps/"
+        echo "          Sigma field extractions will be missing; see README.md (Splunk add-ons)"
+        ADDONS_PRESENT=false
+    fi
+done
 
 # Dashboard timezone for the admin user.
 mkdir -p "${SPLUNK_HOME}/etc/users/admin/user-prefs/local"
@@ -441,6 +466,24 @@ if runuser -u splunk -- "${SPLUNK_HOME}/bin/splunk" btool inputs list --debug 2>
 else
     echo "WARNING : could not verify inputs configuration with btool"
 fi
+
+# Confirm the add-ons' parsing settings are active for the lab sourcetypes.
+# Output is captured first so grep -q cannot SIGPIPE btool under pipefail.
+#   linux_audit    - auditd monitor inputs (Splunk host and Linux endpoint)
+#   XmlWinEventLog - Windows Security events forwarded with renderXml = true
+for check in "linux_audit:Splunk_TA_nix" "XmlWinEventLog:Splunk_TA_windows"; do
+    check_sourcetype="${check%%:*}"
+    check_addon="${check##*:}"
+    check_props="$(runuser -u splunk -- "${SPLUNK_HOME}/bin/splunk" \
+        btool props list "${check_sourcetype}" --debug 2>/dev/null || true)"
+
+    if grep -q "/etc/apps/${check_addon}/" <<<"${check_props}"; then
+        echo "OK      : ${check_addon} props loaded for ${check_sourcetype}"
+    else
+        echo "WARNING : could not verify ${check_addon} props for ${check_sourcetype} with btool"
+        echo "          run the field check in detections/sigma/README.md after events arrive"
+    fi
+done
 
 
 # --------------------------------------------------
@@ -558,6 +601,7 @@ INFO_FILE="${WORK_HOME}/splunk-info.txt"
     echo
     echo "Splunk input : TCP/9997 (Universal Forwarder receiver)"
     echo "Indexes      : linux_audit, linux_endpoint, windows_endpoint"
+    echo "Add-ons      : ${EXPECTED_ADDONS[*]} (all installed: ${ADDONS_PRESENT})"
     echo
     if [ "$ALL_OK" = true ]; then
         echo "Services     : all running"

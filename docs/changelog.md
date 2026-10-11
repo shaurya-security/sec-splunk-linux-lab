@@ -158,3 +158,26 @@
 - Clarify that the repository's Sigma YAML rules are not automatically converted or run in Splunk.
 ### Validation
 - `git diff --check` — passed.
+
+## 2026-10-11 — Add Splunk add-ons and standardize Sigma rules
+### Added
+- Install and verify `Splunk_TA_windows` and `Splunk_TA_nix` from the userdata bucket `apps/` prefix in `splunk-install.sh`, with `btool` checks for `linux_audit` and `XmlWinEventLog` and an `Add-ons` line in `splunk-info.txt`. Missing add-ons log a warning and do not fail the bootstrap.
+- Added `detections/sigma/pipelines/lab_splunk.yml` to scope rules to the lab indexes/sources and map `EventID` to `EventCode` and `Computer` to `host`.
+- Documented post-deployment field-check searches and `sigma-cli` conversion in `detections/sigma/README.md`.
+### Changed
+- Standardized all six Sigma rules to Sigma/SigmaHQ conventions: logsource-prefixed file names (`lnx_auditd_*`, `win_security_*`, `corr_*`), 4-space indentation, hyphenated ATT&CK tactic tags, `modified` dates, "Detects ..." descriptions, and ATT&CK references moved to tags.
+- Linux rules now use native auditd fields (`type`, `exe`, `res`, `acct`, `addr`) instead of ad-hoc `message`, `SourceIp`, and `User`; Windows rules use `Computer` instead of `ComputerName`. Event rules carry `attack.t1110`; correlation rules carry the specific sub-technique.
+- The Linux event rule now requires `exe` ending in `/sshd`; previously it matched any failed `USER_AUTH`/`USER_LOGIN` record, including sudo, su, and console logins.
+- Linux rules now cover both `linux_endpoint` and `linux_audit` (the Splunk host's own auditd).
+- Updated README guidance: Windows `EventCode` is extracted once `Splunk_TA_windows` is installed.
+### Notes
+- Changing `splunk-install.sh` replaces the Splunk instance on the next apply; indexed data is lost with it.
+### Validation
+- `bash -n terraform/lab/userdata/splunk-install.sh` — passed.
+- Add-on install and `btool` check logic exercised with stub packages and a stub `splunk` binary (add-ons present, partly loaded, and absent) — behaved as intended.
+- Parsed all rule and pipeline files with PyYAML and checked them against the Sigma rule and correlation rule structure.
+- `sigma check` / `sigma convert` and Terraform validation were not run: PyPI access was blocked and Terraform is not installed in this environment.
+
+## 2026-10-11 — Architecture refreshed
+
+- docs/architecture.md rebuilt from a full project scan (version 17, 40 files).

@@ -4,34 +4,108 @@ These experimental rules cover the lab's configured telemetry:
 
 - Linux endpoint: `index=linux_endpoint`, sourcetype `linux_audit`, from `/var/log/audit/audit.log`.
 - Splunk host: the same auditd log path is collected locally into `index=linux_audit`, sourcetype `linux_audit`.
-- Windows endpoint: `index=windows_endpoint`, Security channel with XML rendering, including failed-logon Event ID `4625`.
-- Universal Forwarder inputs are defined in `terraform/lab/userdata/linux-endpoint.sh` and `terraform/lab/userdata/windows-endpoint.sh`.
+- Windows endpoint: `index=windows_endpoint`, Security channel with XML rendering (`renderXml = true`), which Splunk labels `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`.
+- Universal Forwarder inputs are defined in `terraform/lab/userdata/linux-endpoint.sh` and `terraform/lab/userdata/windows-endpoint.sh`; the receiving Splunk host and its add-ons are configured in `terraform/lab/userdata/splunk-install.sh`.
+
+## Splunk add-ons
+
+Field extraction happens at search time on the Splunk host, so the add-ons are installed there only. The Universal Forwarders need none. `splunk-install.sh` extracts every `.tgz`/`.spl` found under `apps/` in the userdata bucket and reports each expected add-on as `OK` or `WARNING` in `/var/log/splunk-install.log`.
+
+| Add-on | Directory | Splunkbase | Provides |
+|---|---|---|---|
+| Splunk Add-on for Microsoft Windows | `Splunk_TA_windows` | 742 | `XmlWinEventLog` field extractions (`EventCode`, `TargetUserName`, `IpAddress`, `LogonType`, ...) |
+| Splunk Add-on for Unix and Linux | `Splunk_TA_nix` | 833 | `linux_audit` sourcetype handling (Splunk-supported; documented CIM Authentication/Change mapping) |
+
+Download the package versions that Splunkbase lists as compatible with Splunk Enterprise 10.4 and upload them under `apps/`; the file name does not matter:
+
+```bash
+aws s3 cp ./<windows-addon>.tgz s3://shaurya-terraform-userdata-2026/apps/
+aws s3 cp ./<unix-linux-addon>.tgz s3://shaurya-terraform-userdata-2026/apps/
+```
+
+The archived community "Linux Auditd" add-on (Splunkbase 4232) is not used: it lists support only up to Splunk 9.4.
 
 ## Rules
 
-- `linux/linux_ssh_failed_auth.yml`: failed auditd `USER_AUTH` / `USER_LOGIN` records with `res=failed`.
-- `windows/windows_failed_logon.yml`: individual Windows failed-logon events.
-- `correlation/linux_ssh_brute_force.yml` and `correlation/windows_logon_brute_force.yml`: more than five failures in five minutes for the same source, host, and account.
-- `correlation/linux_ssh_password_spray.yml` and `correlation/windows_password_spray.yml`: failures against more than ten distinct accounts in ten minutes from one source to one host.
+File names follow `<logsource>_<description>.yml`; correlation rules add a `corr_` prefix.
+
+| File | Rule | Level |
+|---|---|---|
+| `linux/lnx_auditd_ssh_failed_auth.yml` | Failed `sshd` `USER_AUTH` / `USER_LOGIN` auditd records | low |
+| `windows/win_security_failed_logon.yml` | Individual failed logons, Event ID `4625` | low |
+| `correlation/corr_lnx_auditd_ssh_brute_force.yml` | More than 5 SSH failures in 5 minutes for one account, source, and host | medium |
+| `correlation/corr_win_security_brute_force.yml` | More than 5 failed logons in 5 minutes for one account, source, and host | medium |
+| `correlation/corr_lnx_auditd_ssh_password_spray.yml` | More than 10 distinct accounts in 10 minutes from one source to one host | high |
+| `correlation/corr_win_security_password_spray.yml` | More than 10 distinct accounts in 10 minutes from one source to one host | high |
 
 Thresholds are starting values for this lab; tune them using observed event volume before enabling alerts.
 
+## Conventions
+
+- Metadata order and style follow the Sigma specification and SigmaHQ conventions: 4-space indentation, descriptions starting with "Detects", ISO `date`/`modified`, `experimental` status for new rules.
+- ATT&CK mappings are tags only (tactic in the hyphenated form, e.g. `attack.credential-access`), not reference links. Event rules carry the parent technique `attack.t1110`; correlation rules carry the specific sub-technique: `attack.t1110.001` for brute force and `attack.t1110.003` for password spray.
+- Rules use each log source's native field names, so they stay portable to other backends. Splunk-specific scoping and renaming lives in one place, `pipelines/lab_splunk.yml`.
+- `Computer` is the one logical field shared by both operating systems. Auditd records carry no host key, so the pipeline maps `Computer` to the Splunk `host` field for Linux and Windows.
+
 ## Splunk field and index mapping
 
-Sigma logsource metadata identifies event semantics; it does not constrain Splunk searches to these indexes. Configure the Sigma-to-Splunk conversion/deployment to scope Linux rules to `index=linux_endpoint` and Windows rules to `index=windows_endpoint`.
+The pipeline scopes rules by logsource and renames fields:
 
-Before deploying, inspect raw events and confirm or normalize these fields:
-
-| Sigma field | Linux auditd source | Windows Security source |
+| Logsource | Added scope | Field renames |
 |---|---|---|
-| `message` | Map to the raw audit event (`_raw`) or an extracted message field. | Not used by the Windows event rule. |
-| `SourceIp` | Extract auditd `addr=` for remote authentication events. | Map from the event's `IpAddress` field. |
-| `User` | Extract auditd `acct=`. | Map from `TargetUserName` if using a shared normalized schema. |
-| `ComputerName` | Map from the event host, expected to be `linux-endpoint-01`. | Map from the event host, expected to be `windows-endpoint-01`. |
-| `EventID` | Not used by the Linux event rule. | Map to the actual extracted event ID field (often `EventCode` or `EventID`). |
-| `TargetUserName`, `IpAddress` | Not used directly by the Linux event rule. | Confirm these are extracted from the XML-rendered Security event. |
+| `product: windows`, `service: security` | `index=windows_endpoint source="XmlWinEventLog:Security"` | `EventID` -> `EventCode`, `Computer` -> `host` |
+| `product: linux`, `service: auditd` | `index IN (linux_endpoint, linux_audit)`, `sourcetype=linux_audit` | `Computer` -> `host` |
 
-Linux correlation rules require parsed `addr=` and `acct=` values normalized to `SourceIp` and `User`; the event host must be normalized to `ComputerName`. Windows correlations also require verified fields. Sigma correlation support and field mapping vary by backend; convert and inspect generated SPL before deployment. Normalize Windows placeholder source addresses such as `-` and loopback values to null and exclude them from source-based correlations.
+Fields the rules read, and where each comes from:
+
+| Sigma field | Linux auditd | Windows Security (XML) |
+|---|---|---|
+| `type`, `exe`, `res` | Raw auditd keys (`type=`, `exe=`, `res=`). `res` is matched with `startswith` because the extracted value can carry the closing quote of `msg='...'`. | Not used |
+| `acct`, `addr` | Raw auditd keys: account name and remote address. | Not used |
+| `EventID` | Not used | Extracted as `EventCode` by `Splunk_TA_windows` |
+| `TargetUserName`, `IpAddress`, `LogonType` | Not used | `Data` elements of the Security event, extracted by `Splunk_TA_windows` |
+| `Computer` | Mapped to `host` (expected `linux-endpoint-01`) | Mapped to `host` (expected `windows-endpoint-01`) |
+
+## Convert to SPL
+
+```bash
+pip install sigma-cli pysigma-backend-splunk
+sigma convert -t splunk -p detections/sigma/pipelines/lab_splunk.yml detections/sigma/
+```
+
+Use this pipeline on its own. The built-in `splunk_windows` pipeline scopes Windows rules to `source="WinEventLog:Security"` (classic format), which would not match the lab's XML-rendered events. Correlation support and the renaming of correlation `group-by` fields depend on the pySigma and backend versions: inspect the generated SPL and confirm each `stats ... by` clause uses `host`, `addr`, `acct`, `IpAddress`, or `TargetUserName` as intended before creating alerts. Run `sigma check detections/sigma/` for rule validation.
+
+Normalize Windows placeholder source addresses such as `-` and loopback values to null and exclude them from source-based correlations.
+
+## Verify fields after deployment
+
+Run these in Search & Reporting once events have arrived. Each counted field should be close to `events`; a count of `0` means the add-on is missing or the extraction is not applied.
+
+```spl
+index=windows_endpoint source="XmlWinEventLog:Security" EventCode=4625
+| stats count AS events count(TargetUserName) AS TargetUserName count(IpAddress) AS IpAddress count(LogonType) AS LogonType BY host
+```
+
+```spl
+(index=linux_endpoint OR index=linux_audit) sourcetype=linux_audit (type=USER_AUTH OR type=USER_LOGIN)
+| stats count AS events count(acct) AS acct count(addr) AS addr count(exe) AS exe count(res) AS res BY index host
+```
+
+```spl
+(index=linux_endpoint OR index=linux_audit) sourcetype=linux_audit type=USER_AUTH
+| stats count BY res
+```
+
+If `EventCode` is empty for Windows events, check `index=windows_endpoint | stats count BY sourcetype source` first: events labelled `XmlWinEventLog` need `Splunk_TA_windows`. On the Splunk host, `$SPLUNK_HOME/bin/splunk btool props list XmlWinEventLog --debug` should show lines from `etc/apps/Splunk_TA_windows/`.
+
+If the auditd fields are empty, the raw events can still be searched while you adjust extraction, for example:
+
+```spl
+index=linux_endpoint sourcetype=linux_audit type=USER_AUTH res=failed*
+| rex field=_raw "acct=\"(?<acct>[^\"]*)\""
+| rex field=_raw "addr=(?<addr>\S+)"
+| stats count BY acct addr host
+```
 
 ## Validation and coverage limits
 

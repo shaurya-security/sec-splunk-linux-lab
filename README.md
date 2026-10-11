@@ -24,6 +24,10 @@ Terraform provisions a small AWS lab with Splunk Enterprise, an Amazon Linux end
 | `splunk/10.4.3/splunk-10.4.3-4174a2deda5d.x86_64.rpm` | Splunk Enterprise for Linux |
 | `splunk/10.4.3/splunkforwarder-10.4.3-4174a2deda5d.x86_64.rpm` | Linux Universal Forwarder |
 | `splunk/10.4.3/splunkforwarder-10.4.3-4174a2deda5d-windows-x64.msi` | Windows Universal Forwarder |
+| `apps/<any name>.tgz` or `.spl` | Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) |
+| `apps/<any name>.tgz` or `.spl` | Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) |
+
+The add-ons are installed on the Splunk host by `splunk-install.sh` and provide the search-time field extractions the Sigma rules rely on (see [Splunk add-ons](#splunk-add-ons)). A missing add-on does not stop the bootstrap; it logs a `WARNING` and the Windows `EventCode` and other extracted fields stay empty.
 
 The default userdata bucket is `shaurya-terraform-userdata-2026`; the package prefix and filenames can be changed in `terraform/lab/variables.tf`. Terraform uploads the bootstrap scripts, but does not create this bucket or upload the software packages. Windows bootstrap installs AWS CLI v2 from AWS’s official signed MSI if the AMI does not include it.
 
@@ -65,15 +69,20 @@ index=linux_endpoint sourcetype=linux_audit
 index=windows_endpoint
 ```
 
-Windows Security events are collected with XML rendering. In current events, the event ID remains in raw XML rather than being extracted as `EventCode`; this is a Splunk field-extraction issue, not a Sigma rule issue. Sigma rules in this repository are not automatically converted or run.
+Windows Security events are collected with XML rendering (`sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`). With `Splunk_TA_windows` installed on the Splunk host, the event ID and event data are extracted as search-time fields:
 
-Search the raw XML for failed logons (Event ID 4625):
+```spl
+index=windows_endpoint source="XmlWinEventLog:Security" EventCode=4625
+| stats count by host TargetUserName IpAddress LogonType
+```
+
+Sigma rules in this repository are not automatically converted or run. If `EventCode` is empty, the add-on is missing or not loaded; see [Splunk add-ons](#splunk-add-ons). In the meantime you can search the raw XML for failed logons (Event ID 4625):
 
 ```spl
 index=windows_endpoint "<EventID>4625</EventID>"
 ```
 
-To extract the XML event ID for one search and summarize it:
+To extract the XML event ID for one search without the add-on and summarize it:
 
 ```spl
 index=windows_endpoint "<EventID>4625</EventID>"
@@ -81,9 +90,22 @@ index=windows_endpoint "<EventID>4625</EventID>"
 | stats count by EventID host
 ```
 
+## Splunk add-ons
+
+Parsing and field extraction run on the Splunk host, so add-ons are installed there only; the Universal Forwarders need none.
+
+| Add-on | Directory | Why |
+|---|---|---|
+| Splunk Add-on for Microsoft Windows | `Splunk_TA_windows` | Extracts `EventCode`, `TargetUserName`, `IpAddress`, and `LogonType` from XML-rendered Security events |
+| Splunk Add-on for Unix and Linux | `Splunk_TA_nix` | Handles the `linux_audit` sourcetype used by both auditd inputs |
+
+Upload the packages to `s3://<userdata bucket>/apps/` before creating the Splunk instance (see [Requirements](#requirements)). `splunk-install.sh` extracts them into `/opt/splunk/etc/apps`, then checks with `btool` that their settings apply to `linux_audit` and `XmlWinEventLog`, logging `OK` or `WARNING` lines to `/var/log/splunk-install.log`. The `Add-ons` line in `/home/ssm-user/splunk-info.txt` reports whether both were found.
+
+Changing `splunk-install.sh` replaces the Splunk instance on the next `terraform apply`, and the indexed data is lost with it. To avoid that on a running host, extract the add-on packages into `/opt/splunk/etc/apps` as the `splunk` user (via Session Manager), restart Splunk, and then run the field checks in [`detections/sigma/README.md`](detections/sigma/README.md#verify-fields-after-deployment).
+
 ## Sigma detections
 
-Experimental Linux and Windows event rules and correlation rules are in `detections/sigma/`. See [`detections/sigma/README.md`](detections/sigma/README.md) for index scoping, field normalization, correlation requirements, and validation guidance. The Sigma rules are source files; a Sigma-to-Splunk conversion/deployment workflow is not configured yet.
+Experimental Linux and Windows event rules and correlation rules are in `detections/sigma/`, along with a Splunk processing pipeline (`detections/sigma/pipelines/lab_splunk.yml`) that scopes them to the lab indexes and maps field names to the add-on output. See [`detections/sigma/README.md`](detections/sigma/README.md) for conventions, field mapping, conversion with `sigma-cli`, correlation requirements, and validation guidance. The Sigma rules are source files; a deployment workflow that creates Splunk saved searches or alerts is not configured yet.
 
 The endpoint security groups have no inbound rules, so public SSH/RDP brute-force attempts cannot reach these endpoints. Do not open public SSH/RDP for testing; use controlled local or synthetic events.
 
@@ -126,7 +148,7 @@ A completed bootstrap does not by itself prove a forwarder is connected. Check t
 
 ```text
 .
-├── detections/sigma/       # Experimental Linux, Windows, and correlation rules
+├── detections/sigma/       # Experimental Linux, Windows, and correlation rules, plus Splunk pipeline
 ├── docs/                   # Architecture and changelog
 └── terraform/
     ├── bootstrap/          # State bucket configuration

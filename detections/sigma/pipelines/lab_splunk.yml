@@ -1,0 +1,53 @@
+name: Security Splunk Linux Lab
+# Maps this repository's Sigma rules onto the lab's Splunk ingestion. Use it on its own with
+# the Splunk backend. Do not stack it with the built-in splunk_windows pipeline: that pipeline
+# scopes Windows rules to source="WinEventLog:Security", but the lab forwards XML-rendered events
+# (renderXml = true), which Splunk labels source="XmlWinEventLog:Security".
+#
+#   sigma convert -t splunk -p detections/sigma/pipelines/lab_splunk.yml detections/sigma/
+#
+# Field names the add-ons are expected to provide are listed in detections/sigma/README.md.
+priority: 20
+transformations:
+    # Windows Security events -> index windows_endpoint, XML-rendered channel
+    - id: lab_windows_security_scope
+      type: add_condition
+      conditions:
+          index: windows_endpoint
+          source: XmlWinEventLog:Security
+      rule_conditions:
+          - type: logsource
+            product: windows
+            service: security
+
+    - id: lab_windows_security_fields
+      type: field_name_mapping
+      mapping:
+          EventID: EventCode
+          Computer: host
+      rule_conditions:
+          - type: logsource
+            product: windows
+            service: security
+
+    # Linux auditd -> linux_endpoint (forwarded endpoint) and linux_audit (Splunk host's own auditd)
+    - id: lab_linux_auditd_scope
+      type: add_condition
+      conditions:
+          index:
+              - linux_endpoint
+              - linux_audit
+          sourcetype: linux_audit
+      rule_conditions:
+          - type: logsource
+            product: linux
+            service: auditd
+
+    - id: lab_linux_auditd_fields
+      type: field_name_mapping
+      mapping:
+          Computer: host
+      rule_conditions:
+          - type: logsource
+            product: linux
+            service: auditd
